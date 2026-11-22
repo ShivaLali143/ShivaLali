@@ -40,11 +40,11 @@
       overflow-x: hidden;
     }
     .studio-card {
-      background: rgba(17, 17, 22, 0.82);
+      background: rgba(17, 17, 22, 0.84);
       border: 1px solid rgba(255, 255, 255, 0.09);
     }
     .studio-dock {
-      background: rgba(13, 13, 18, 0.92);
+      background: rgba(13, 13, 18, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
     .logo-frame {
@@ -63,7 +63,6 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Uploaded in repo root as "shivalai logo.jpg"
     const LOGO_SOURCES = [
       "./shivalai%20logo.jpg",
       "./shivalai logo.jpg",
@@ -92,8 +91,13 @@
 
     const CAMERA_LENSES = ['24mm f/1.4', '35mm f/1.8', '50mm f/1.2', '85mm f/1.4', '16mm Ultra-Wide'];
     const LIGHTING_MODES = ['Golden Hour Natural', 'Rembrandt Studio', 'Moody Rim Light', 'Soft Diffused Daylight', 'Neon Night Rain'];
+    const DEFAULT_NEGATIVE = 'cartoon, 3d render, plastic skin, wax figure, CGI, oversaturated, watermark, embedded gibberish text, distorted anatomy';
 
-    function enhancePromptText(rawPrompt, presetId, lens, lighting, mode) {
+    function generateRandomSeed() {
+      return Math.floor(100000 + Math.random() * 900000);
+    }
+
+    function enhancePromptText(rawPrompt, presetId, lens, lighting, mode, negativeText) {
       const base = rawPrompt.trim() || 'modern architectural glass villa overlooking misty hills at golden hour';
       const presetMap = {
         candid: 'unposed candid documentary photograph, natural skin pores and fine hair texture, authentic film grain, Kodak Portra 400 color science, clean uncluttered composition',
@@ -105,7 +109,8 @@
       const motionSuffix = mode === 'video'
         ? ', smooth slow camera dolly movement, natural physics motion, 24fps cinematic cadence'
         : '';
-      return `${base}, ${presetMap[presetId] || presetMap.editorial}, shot on ${lens}, ${lighting}, raw unedited photography, 8k resolution${motionSuffix} --no cartoon, 3d render, plastic skin, wax figure, CGI, oversaturated, watermark, embedded gibberish text, distorted anatomy`;
+      const neg = (negativeText || DEFAULT_NEGATIVE).trim();
+      return `${base}, ${presetMap[presetId] || presetMap.editorial}, shot on ${lens}, ${lighting}, raw unedited photography, 8k resolution${motionSuffix} --no ${neg}`;
     }
 
     function renderProceduralCanvas(canvas, item) {
@@ -114,7 +119,7 @@
       const w = canvas.width;
       const h = canvas.height;
 
-      const seedStr = (item.prompt || 'ShivaLali') + item.id;
+      const seedStr = (item.prompt || 'ShivaLali') + '-' + (item.seed || item.id);
       let hash = 2166136261;
       for (let i = 0; i < seedStr.length; i++) {
         hash ^= seedStr.charCodeAt(i);
@@ -233,12 +238,16 @@
       const [isOwner, setIsOwner] = useState(false);
       const [credits, setCredits] = useState(3);
       const [sidebarOpen, setSidebarOpen] = useState(true);
+      const [focusMode, setFocusMode] = useState(false);
 
       const [mode, setMode] = useState('image');
       const [aspectRatio, setAspectRatio] = useState(ASPECT_RATIOS[0]);
       const [preset, setPreset] = useState('editorial');
       const [lens, setLens] = useState('35mm f/1.8');
       const [lighting, setLighting] = useState('Golden Hour Natural');
+      const [seed, setSeed] = useState(() => generateRandomSeed());
+      const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE);
+      const [exportFormat, setExportFormat] = useState('png');
 
       const [prompt, setPrompt] = useState('');
       const [enhancedPrompt, setEnhancedPrompt] = useState('');
@@ -248,6 +257,13 @@
 
       const [activeOutput, setActiveOutput] = useState(null);
       const [history, setHistory] = useState([]);
+      const [savedPrompts, setSavedPrompts] = useState(() => {
+        try {
+          return JSON.parse(localStorage.getItem('shivalali_saved_prompts') || '[]');
+        } catch {
+          return [];
+        }
+      });
       const [toast, setToast] = useState(null);
 
       const [showOwnerModal, setShowOwnerModal] = useState(false);
@@ -267,7 +283,7 @@
 
       const notify = (msg) => {
         setToast(msg);
-        setTimeout(() => setToast(null), 3200);
+        setTimeout(() => setToast(null), 3000);
       };
 
       useEffect(() => {
@@ -275,6 +291,34 @@
           renderProceduralCanvas(canvasRef.current, activeOutput);
         }
       }, [activeOutput]);
+
+      useEffect(() => {
+        try {
+          localStorage.setItem('shivalali_saved_prompts', JSON.stringify(savedPrompts));
+        } catch {}
+      }, [savedPrompts]);
+
+      const handleSavePromptPreset = () => {
+        const text = (prompt || enhancedPrompt).trim();
+        if (!text) {
+          notify('Write a prompt before saving');
+          return;
+        }
+        const entry = {
+          id: Date.now(),
+          text,
+          ratioId: aspectRatio.id,
+          preset,
+          seed
+        };
+        setSavedPrompts((prev) => [entry, ...prev.slice(0, 14)]);
+        notify('Prompt Saved to Library');
+      };
+
+      const handleDeleteSavedPrompt = (id) => {
+        setSavedPrompts((prev) => prev.filter((item) => item.id !== id));
+        notify('Removed from Saved Library');
+      };
 
       const handleMagicEnhance = async () => {
         setIsEnhancing(true);
@@ -290,7 +334,7 @@
                 body: JSON.stringify({
                   contents: [{
                     parts: [{
-                      text: `Expand this into a single concise ultra-photorealistic ${mode} generation prompt. Include camera lens (${lens}), lighting (${lighting}), style (${preset}), authentic textures, balanced negative space, 8k raw photography, and end with "--no cartoon, 3d render, plastic skin, CGI, watermark". Input: "${base}"`
+                      text: `Expand this into a single concise ultra-photorealistic ${mode} generation prompt. Include camera lens (${lens}), lighting (${lighting}), style (${preset}), authentic textures, balanced negative space, 8k raw photography, and end with "--no ${negativePrompt}". Input: "${base}"`
                     }]
                   }]
                 })
@@ -308,8 +352,8 @@
           } catch (e) {}
         }
 
-        await new Promise((r) => setTimeout(r, 450));
-        const expanded = enhancePromptText(base, preset, lens, lighting, mode);
+        await new Promise((r) => setTimeout(r, 400));
+        const expanded = enhancePromptText(base, preset, lens, lighting, mode, negativePrompt);
         setEnhancedPrompt(expanded);
         setPrompt(expanded);
         setIsEnhancing(false);
@@ -323,13 +367,14 @@
           return;
         }
 
-        const finalPrompt = (enhancedPrompt || prompt).trim() || enhancePromptText('serene coastal cliffside villa at sunrise', preset, lens, lighting, mode);
+        const currentSeed = Number(seed) || generateRandomSeed();
+        const finalPrompt = (enhancedPrompt || prompt).trim() || enhancePromptText('serene coastal cliffside villa at sunrise', preset, lens, lighting, mode, negativePrompt);
         setIsGenerating(true);
-        setProgress(15);
+        setProgress(16);
 
         const timer = setInterval(() => {
           setProgress((p) => (p < 88 ? p + Math.floor(Math.random() * 15) + 6 : p));
-        }, 220);
+        }, 200);
 
         let generatedImageUrl = null;
         const supportedImagenRatios = ['1:1', '3:4', '4:3', '9:16', '16:9'];
@@ -344,7 +389,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   instances: [{ prompt: finalPrompt }],
-                  parameters: { sampleCount: 1, aspectRatio: apiRatio }
+                  parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: currentSeed }
                 })
               }
             );
@@ -357,13 +402,14 @@
           } catch (err) {}
         }
 
-        await new Promise((r) => setTimeout(r, 950));
+        await new Promise((r) => setTimeout(r, 850));
         clearInterval(timer);
         setProgress(100);
 
         const newItem = {
           id: Date.now(),
           mode,
+          seed: currentSeed,
           prompt: finalPrompt,
           preset,
           lens,
@@ -381,27 +427,30 @@
         setActiveOutput(newItem);
         setHistory((prev) => [newItem, ...prev.slice(0, 19)]);
         setIsGenerating(false);
-        setTimeout(() => setProgress(0), 350);
-        notify(isOwner ? 'Generated (Owner Unlimited • Clean Export)' : 'Generated (1 Credit Used)');
+        setTimeout(() => setProgress(0), 300);
+        notify(isOwner ? `Generated • Seed ${currentSeed}` : `Generated (1 Credit Used) • Seed ${currentSeed}`);
       };
 
       const handleDownloadHighRes = () => {
         if (!activeOutput) return;
-        const filename = `ShivaLali-${activeOutput.mode}-${activeOutput.ratio.id.replace(':', 'x')}-${activeOutput.id}.png`;
+        const ext = exportFormat === 'jpg' ? 'jpg' : 'png';
+        const mime = exportFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+        const filename = `ShivaLali-${activeOutput.mode}-${activeOutput.ratio.id.replace(':', 'x')}-${activeOutput.seed || activeOutput.id}.${ext}`;
+
         if (activeOutput.imageUrl) {
           const link = document.createElement('a');
           link.href = activeOutput.imageUrl;
           link.download = filename;
           link.click();
-          notify('High-Res Export Downloaded');
+          notify(`Exported ${ext.toUpperCase()}`);
           return;
         }
         if (canvasRef.current) {
           const link = document.createElement('a');
-          link.href = canvasRef.current.toDataURL('image/png', 1.0);
+          link.href = canvasRef.current.toDataURL(mime, 0.96);
           link.download = filename;
           link.click();
-          notify('High-Res PNG Exported');
+          notify(`Exported ${ext.toUpperCase()}`);
         }
       };
 
@@ -412,7 +461,7 @@
           return;
         }
         navigator.clipboard?.writeText(textToCopy);
-        notify('Enhanced Prompt Copied');
+        notify('Prompt Copied');
       };
 
       const handleUnlockOwner = (e) => {
@@ -436,7 +485,7 @@
           setSelectedPlan(null);
           setShowPricingModal(false);
           notify(`${plan.name} Activated! +${plan.creditBonus} Credits Added`);
-        }, 850);
+        }, 800);
       };
 
       const saveApiSettings = () => {
@@ -480,8 +529,8 @@
         <div className="min-h-screen bg-[#09090B] text-zinc-100 flex flex-col relative selection:bg-violet-600/40 selection:text-amber-200">
           {/* Subtle Ambient Glows */}
           <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
-            <div className="absolute -top-40 left-1/4 w-[440px] h-[440px] rounded-full bg-[#7C3AED]/12 blur-[120px]" />
-            <div className="absolute bottom-0 right-1/5 w-[380px] h-[380px] rounded-full bg-[#F59E0B]/10 blur-[130px]" />
+            <div className="absolute -top-40 left-1/4 w-[420px] h-[420px] rounded-full bg-[#7C3AED]/12 blur-[120px]" />
+            <div className="absolute bottom-0 right-1/5 w-[360px] h-[360px] rounded-full bg-[#F59E0B]/10 blur-[125px]" />
           </div>
 
           {/* Toast */}
@@ -494,13 +543,15 @@
           {/* Top Navigation Bar */}
           <header className="sticky top-0 z-30 h-16 studio-card border-b border-white/10 px-4 lg:px-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-zinc-300 transition cursor-pointer"
-                title="Toggle Studio Controls"
-              >
-                ☰
-              </button>
+              {!focusMode && (
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-zinc-300 transition cursor-pointer"
+                  title="Toggle Studio Controls"
+                >
+                  ☰
+                </button>
+              )}
               <div className="flex items-center gap-3">
                 <BrandLogo />
                 <span className="font-display font-bold tracking-tight text-lg sm:text-xl text-white">
@@ -510,6 +561,17 @@
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setFocusMode(!focusMode)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                  focusMode
+                    ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
+                    : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-300'
+                }`}
+              >
+                {focusMode ? 'Exit Focus' : 'Focus View'}
+              </button>
+
               {isOwner ? (
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-gradient-to-r from-amber-500/20 via-yellow-400/15 to-amber-500/20 text-amber-300 border border-amber-400/50">
@@ -556,7 +618,7 @@
           {/* Main Workspace */}
           <div className="flex-1 flex relative z-10">
             {/* Collapsible Left Sidebar */}
-            {sidebarOpen && (
+            {!focusMode && sidebarOpen && (
               <aside className="w-72 shrink-0 studio-card border-r border-white/10 p-4 flex flex-col gap-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
                 {/* Media Format */}
                 <div>
@@ -668,10 +730,46 @@
                     </select>
                   </div>
                 </div>
+
+                {/* Seed & Negative Prompt */}
+                <div className="space-y-3 pt-1 border-t border-white/10">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold">
+                        Seed Value
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setSeed(generateRandomSeed())}
+                        className="text-[10px] text-amber-300 hover:underline cursor-pointer"
+                      >
+                        Randomize
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      value={seed}
+                      onChange={(e) => setSeed(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-zinc-200 focus:outline-none focus:border-violet-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1.5">
+                      Exclude / Negative
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={negativePrompt}
+                      onChange={(e) => setNegativePrompt(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-[11px] text-zinc-300 resize-none focus:outline-none focus:border-violet-400"
+                    />
+                  </div>
+                </div>
               </aside>
             )}
 
-            {/* Center Canvas + Prompt Dock + History */}
+            {/* Center Canvas + Prompt Dock + History & Saved Library */}
             <main className="flex-1 flex flex-col justify-between p-4 lg:p-6 gap-4 overflow-y-auto">
               {/* Top Action Bar */}
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -683,9 +781,20 @@
                   <span className="px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/10 text-zinc-200 font-medium">
                     {aspectRatio.label} ({aspectRatio.subtitle})
                   </span>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="hidden sm:inline text-zinc-500">Seed {seed}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs bg-white/[0.04] border border-white/10 text-zinc-200 focus:outline-none cursor-pointer"
+                    title="Export File Format"
+                  >
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                  </select>
                   <button
                     onClick={handleCopyPrompt}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-zinc-200 transition cursor-pointer"
@@ -697,7 +806,7 @@
                     disabled={!activeOutput}
                     className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 disabled:opacity-40 transition cursor-pointer"
                   >
-                    Download High-Res {isOwner ? '(Clean)' : ''}
+                    Download {exportFormat.toUpperCase()} {isOwner ? '(Clean)' : ''}
                   </button>
                 </div>
               </div>
@@ -708,7 +817,7 @@
                   style={{
                     aspectRatio: aspectRatio.cssRatio,
                     maxWidth: '100%',
-                    maxHeight: '52vh',
+                    maxHeight: focusMode ? '62vh' : '50vh',
                     width: aspectRatio.id === '9:16' ? '280px' : aspectRatio.id === '2:3' ? '320px' : aspectRatio.id === '4:5' ? '360px' : '680px'
                   }}
                   className="relative w-full h-full rounded-2xl studio-card border border-white/15 overflow-hidden flex items-center justify-center transition-all duration-300"
@@ -752,7 +861,7 @@
                         Describe your vision below, then click <span className="text-violet-300 font-medium">Magic Enhance</span> or <span className="text-amber-300 font-medium">Generate</span>.
                       </p>
                       <p className="text-xs text-zinc-500">
-                        Ultra-photorealistic images and smooth cinematic video rendering.
+                        Tip: Press Ctrl + Enter in the prompt box to generate quickly.
                       </p>
                     </div>
                   )}
@@ -766,11 +875,17 @@
                     rows={2}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGenerate();
+                      }
+                    }}
                     placeholder="Describe your scene in detail (e.g., sunlit modern architectural home, minimalist luxury product on marble, candid golden hour portrait)..."
                     className="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={handleMagicEnhance}
                         disabled={isEnhancing}
@@ -778,7 +893,13 @@
                       >
                         {isEnhancing ? 'Enhancing...' : '✦ Magic Enhance Prompt'}
                       </button>
-                      <span className="hidden sm:inline text-[11px] text-zinc-500">
+                      <button
+                        onClick={handleSavePromptPreset}
+                        className="px-3 py-2 rounded-xl text-xs font-medium bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-zinc-300 transition cursor-pointer"
+                      >
+                        Save Preset
+                      </button>
+                      <span className="hidden lg:inline text-[11px] text-zinc-500">
                         {lens} • {lighting}
                       </span>
                     </div>
@@ -798,43 +919,96 @@
                 </div>
               </div>
 
-              {/* Creations History Strip */}
-              <div className="studio-card rounded-xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-400">
-                    My Creations History ({history.length})
-                  </span>
-                  {history.length > 0 && (
-                    <span className="text-[11px] text-zinc-500">Click any item to reload in canvas</span>
+              {/* Saved Prompts & Creations History */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Saved Presets */}
+                <div className="studio-card rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-400">
+                      Saved Presets ({savedPrompts.length})
+                    </span>
+                    {savedPrompts.length > 0 && (
+                      <span className="text-[11px] text-zinc-500">Click text to load</span>
+                    )}
+                  </div>
+                  {savedPrompts.length === 0 ? (
+                    <div className="text-xs text-zinc-500 py-2">
+                      No saved presets yet. Click "Save Preset" to keep favorite prompts handy.
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {savedPrompts.map((sp) => (
+                        <div
+                          key={sp.id}
+                          className="shrink-0 w-44 p-2 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between gap-1.5"
+                        >
+                          <button
+                            onClick={() => {
+                              setPrompt(sp.text);
+                              setEnhancedPrompt(sp.text);
+                              if (sp.seed) setSeed(sp.seed);
+                              const matchRatio = ASPECT_RATIOS.find((r) => r.id === sp.ratioId);
+                              if (matchRatio) setAspectRatio(matchRatio);
+                              notify('Preset Loaded');
+                            }}
+                            className="text-left text-[11px] text-zinc-200 hover:text-amber-200 line-clamp-2 cursor-pointer"
+                          >
+                            {sp.text}
+                          </button>
+                          <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                            <span>{sp.ratioId}</span>
+                            <button
+                              onClick={() => handleDeleteSavedPrompt(sp.id)}
+                              className="text-rose-400/80 hover:text-rose-300 cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {history.length === 0 ? (
-                  <div className="text-xs text-zinc-500 py-2">
-                    No creations yet. Your generated images and videos will appear here for 1-click reuse.
+
+                {/* Creations History */}
+                <div className="studio-card rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-400">
+                      My Creations History ({history.length})
+                    </span>
+                    {history.length > 0 && (
+                      <span className="text-[11px] text-zinc-500">Click any item to reload</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex gap-2.5 overflow-x-auto pb-1">
-                    {history.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setAspectRatio(item.ratio);
-                          setMode(item.mode);
-                          setPrompt(item.prompt);
-                          setActiveOutput(item);
-                        }}
-                        className="shrink-0 w-36 p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-left transition cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
-                          <span>{item.ratio.label}</span>
-                          <span>{item.mode.toUpperCase()}</span>
-                        </div>
-                        <p className="text-[11px] text-zinc-300 line-clamp-2">{item.prompt}</p>
-                        <div className="text-[10px] text-zinc-500 mt-1">{item.createdAt}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  {history.length === 0 ? (
+                    <div className="text-xs text-zinc-500 py-2">
+                      No creations yet. Your generated images and videos will appear here.
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {history.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setAspectRatio(item.ratio);
+                            setMode(item.mode);
+                            setPrompt(item.prompt);
+                            if (item.seed) setSeed(item.seed);
+                            setActiveOutput(item);
+                          }}
+                          className="shrink-0 w-36 p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-left transition cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
+                            <span>{item.ratio.label}</span>
+                            <span>{item.mode.toUpperCase()}</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-300 line-clamp-2">{item.prompt}</p>
+                          <div className="text-[10px] text-zinc-500 mt-1">{item.createdAt}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </main>
           </div>
