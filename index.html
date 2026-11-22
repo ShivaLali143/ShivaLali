@@ -73,7 +73,7 @@
       <button id="focusBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 cursor-pointer">Focus</button>
       <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-xs text-amber-300 font-medium">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span>Unlimited Studio</span>
+        <span>HD Studio</span>
       </div>
       <button id="apiBtn" class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 cursor-pointer" title="API Settings">⚙</button>
     </div>
@@ -132,7 +132,7 @@
         </div>
         <div>
           <label class="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1">Exclude</label>
-          <textarea id="negInput" rows="2" class="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-[11px] text-zinc-300 resize-none">blurry, low resolution, deformed, watermark, text artifact</textarea>
+          <textarea id="negInput" rows="2" class="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-zinc-300 resize-none">blurry, low resolution, deformed, watermark, gibberish text</textarea>
         </div>
       </div>
     </aside>
@@ -163,19 +163,19 @@
           <div id="gridLayer" class="hidden pointer-events-none absolute inset-0 z-10 grid-overlay"></div>
           <div id="loaderLayer" class="hidden absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center gap-3">
             <div class="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
-            <div id="loaderLabel" class="text-xs font-semibold text-amber-300">Generating...</div>
+            <div id="loaderLabel" class="text-xs font-semibold text-amber-300">Generating High-Quality Image...</div>
           </div>
-          <img id="resultImg" src="" alt="Generated Image" class="hidden w-full h-full object-cover block" />
-          <div id="emptyState" class="p-6 text-center max-w-sm">
-            <div class="text-xs font-semibold text-amber-400 mb-1">ShivaLali Studio</div>
-            <p class="text-xs text-zinc-400">Type your prompt below and press Generate (or Ctrl + Enter).</p>
+          <img id="resultImg" src="" alt="Generated Image" class="hidden w-full h-full object-contain bg-black block" />
+          <div id="emptyState" class="p-6 text-center max-w-md">
+            <div id="emptyTitle" class="text-xs font-semibold text-amber-400 mb-1">ShivaLali Studio</div>
+            <p id="emptyDesc" class="text-xs text-zinc-400">Add your API key via ⚙ (or enter a prompt and press Generate).</p>
           </div>
         </div>
       </div>
 
       <!-- Prompt Dock -->
       <div class="panel rounded-2xl p-3 sm:p-4 border border-white/10">
-        <textarea id="promptInput" rows="2" placeholder="Describe what you want to create..." class="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none"></textarea>
+        <textarea id="promptInput" rows="2" placeholder="Describe your image or infographic with clear text/layout..." class="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none"></textarea>
         <div class="flex items-center justify-between gap-2 pt-2.5 mt-2 border-t border-white/10">
           <button id="savePresetBtn" class="px-3 py-2 rounded-xl text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 cursor-pointer">Save Prompt</button>
           <button id="generateBtn" class="px-6 py-2 rounded-xl text-xs font-bold gold-btn cursor-pointer">Generate</button>
@@ -208,17 +208,20 @@
   <div id="apiModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="panel max-w-md w-full rounded-2xl p-5 border border-white/15 space-y-3">
       <div class="font-display font-bold text-base text-white">API Key Settings</div>
-      <p class="text-xs text-zinc-400">Works with free AI API automatically. Paste your Gemini/Imagen API key here anytime to use your own key first.</p>
-      <input id="geminiKeyInput" type="password" placeholder="AIza... (Optional)" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
+      <p class="text-xs text-zinc-400">Paste your Gemini / Imagen API key below. It will be saved in your browser and used first for high-quality image generation.</p>
+      <input id="geminiKeyInput" type="password" placeholder="Paste your API key here (AIza...)" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
       <div class="flex justify-end gap-2">
         <button id="closeApiBtn" class="px-3.5 py-1.5 rounded-lg text-xs bg-white/5 text-zinc-300 cursor-pointer">Close</button>
-        <button id="saveApiBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold gold-btn cursor-pointer">Save</button>
+        <button id="saveApiBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold gold-btn cursor-pointer">Save Key</button>
       </div>
     </div>
   </div>
 
   <script>
     (function () {
+      // You can also paste your API key directly between the quotes below if desired:
+      const DEFAULT_API_KEY = '';
+
       const RATIOS = [
         { id: '16:9', label: '16:9', w: 1280, h: 720, css: '16 / 9', maxW: '720px' },
         { id: '9:16', label: '9:16', w: 720, h: 1280, css: '9 / 16', maxW: '300px' },
@@ -232,23 +235,16 @@
 
       const STYLES = [
         { id: 'photoreal', name: 'Photorealistic', desc: 'Crisp natural detail & depth' },
-        { id: 'editorial', name: 'Editorial', desc: 'Balanced magazine composition' },
+        { id: 'editorial', name: 'Editorial & Text', desc: 'Clean layout, headings & icons' },
         { id: 'cinema',    name: 'Cinematic', desc: 'Rich shadows & atmospheric light' },
         { id: 'studio',    name: 'Studio', desc: 'Clean high-contrast lighting' },
-        { id: 'artistic',  name: 'Fine Art', desc: 'Expressive painterly texture' }
-      ];
-
-      const VAR_ANGLES = [
-        'wide establishing shot',
-        'medium composition with rich detail',
-        'subtle three-quarter perspective with depth of field',
-        'balanced eye-level view with natural lighting'
+        { id: 'artistic',  name: 'Fine Art', desc: 'Expressive detailed artwork' }
       ];
 
       const state = {
         variations: 1,
         ratio: RATIOS[0],
-        style: 'photoreal',
+        style: 'editorial',
         seed: Math.floor(100000 + Math.random() * 900000),
         focus: false,
         grid: false,
@@ -258,17 +254,22 @@
       };
 
       try {
-        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v5') || '[]');
+        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v6') || '[]');
       } catch (e) {}
 
       const $ = (id) => document.getElementById(id);
+
+      function getActiveApiKey() {
+        const savedKey = (localStorage.getItem('shivalali_key') || '').trim();
+        return savedKey || DEFAULT_API_KEY.trim();
+      }
 
       function notify(msg) {
         const el = $('toast');
         el.textContent = msg;
         el.classList.remove('hidden');
         clearTimeout(notify._t);
-        notify._t = setTimeout(() => el.classList.add('hidden'), 2800);
+        notify._t = setTimeout(() => el.classList.add('hidden'), 3000);
       }
 
       $('brandLogoImg').onerror = function () {
@@ -320,45 +321,28 @@
         });
       }
 
-      function buildRichPrompt(rawPrompt, varIndex) {
+      function buildPrompt(rawPrompt, varIndex) {
         const lens = $('lensSelect').value;
         const light = $('lightSelect').value;
         const neg = $('negInput').value.trim();
-        const angle = VAR_ANGLES[varIndex % VAR_ANGLES.length];
-        const styleDesc = {
-          photoreal: 'photorealistic high resolution image, lifelike lighting and material textures',
-          editorial: 'editorial photography, balanced framing, natural light',
-          cinema: 'cinematic scene, dramatic lighting, rich shadows and highlights',
-          studio: 'studio lighting, sharp focus, clean high-contrast composition',
-          artistic: 'detailed fine art illustration, rich colors and texture'
-        }[state.style] || 'photorealistic high resolution image';
-
-        return `${rawPrompt}, ${styleDesc}, ${angle}, ${lens}, ${light}, exclude ${neg}`;
+        const styleMap = {
+          photoreal: 'ultra-detailed photograph, realistic lighting and textures',
+          editorial: 'high-resolution infographic and editorial graphic design with crisp readable typography, clean icons, and structured layout',
+          cinema: 'cinematic high-detail visual, rich contrast and lighting',
+          studio: 'clean commercial studio visual, sharp focus and balanced composition',
+          artistic: 'detailed digital illustration, rich colors and fine details'
+        };
+        const styleText = styleMap[state.style] || styleMap.editorial;
+        return `${rawPrompt}. ${styleText}. Camera/Lens: ${lens}, Lighting: ${light}, variation ${varIndex + 1}. Avoid: ${neg}.`;
       }
 
-      async function tryUserApiKey(fullPrompt, apiKey, ratioObj, itemSeed) {
-        if (!apiKey) return null;
+      async function generateWithUserKey(fullPrompt, apiKey, ratioObj, itemSeed) {
         const supported = ['1:1', '3:4', '4:3', '9:16', '16:9'];
         const apiRatio = supported.includes(ratioObj.id) ? ratioObj.id : '16:9';
 
-        // Try Gemini Imagen 3 endpoint
+        // 1. Gemini Image Generation model
         try {
-          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: [{ prompt: fullPrompt }],
-              parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
-            })
-          });
-          const d = await r.json();
-          const b64 = d?.predictions?.[0]?.bytesBase64Encoded;
-          if (b64) return `data:image/png;base64,${b64}`;
-        } catch (e) {}
-
-        // Try Gemini native image output model if key is a Gemini key
-        try {
-          const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${encodeURIComponent(apiKey)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -366,21 +350,41 @@
               generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
             })
           });
-          const d2 = await r2.json();
-          const parts = d2?.candidates?.[0]?.content?.parts || [];
+          const d = await r.json();
+          const parts = d?.candidates?.[0]?.content?.parts || [];
           for (const p of parts) {
             if (p.inlineData && p.inlineData.data) {
               const mime = p.inlineData.mimeType || 'image/png';
-              return `data:${mime};base64,${p.inlineData.data}`;
+              return { url: `data:${mime};base64,${p.inlineData.data}`, error: null };
             }
+          }
+          if (d?.error?.message) {
+            return { url: null, error: d.error.message };
           }
         } catch (e) {}
 
-        return null;
+        // 2. Imagen 3 endpoint
+        try {
+          const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(apiKey)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instances: [{ prompt: fullPrompt }],
+              parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
+            })
+          });
+          const d2 = await r2.json();
+          const b64 = d2?.predictions?.[0]?.bytesBase64Encoded;
+          if (b64) return { url: `data:image/png;base64,${b64}`, error: null };
+          if (d2?.error?.message) {
+            return { url: null, error: d2.error.message };
+          }
+        } catch (e) {}
+
+        return { url: null, error: 'API key did not return an image.' };
       }
 
-      async function tryFreeAiEndpoint(fullPrompt, ratioObj, itemSeed) {
-        // Free public AI endpoints (without pollinations.ai)
+      async function generateWithFreeFallback(fullPrompt, ratioObj, itemSeed) {
         const endpoints = [
           `https://api.airforce/v1/imagine2?prompt=${encodeURIComponent(fullPrompt)}&size=${ratioObj.w}x${ratioObj.h}&seed=${itemSeed}`,
           `https://hercai.onrender.com/v3/text2image?prompt=${encodeURIComponent(fullPrompt)}`
@@ -393,12 +397,13 @@
             const ct = resp.headers.get('content-type') || '';
             if (ct.includes('image/')) {
               const blob = await resp.blob();
-              if (blob.size > 2000) {
-                return await new Promise((resolve) => {
+              if (blob.size > 3000) {
+                const dataUrl = await new Promise((resolve) => {
                   const fr = new FileReader();
                   fr.onloadend = () => resolve(fr.result);
                   fr.readAsDataURL(blob);
                 });
+                return dataUrl;
               }
             } else {
               const data = await resp.json();
@@ -410,55 +415,6 @@
         return null;
       }
 
-      function buildStudioFallback(item, varIndex) {
-        const canvas = document.createElement('canvas');
-        canvas.width = item.ratio.w;
-        canvas.height = item.ratio.h;
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width;
-        const h = canvas.height;
-
-        let hash = 2166136261;
-        const seedStr = `${item.prompt}|${item.seed}|${varIndex}`;
-        for (let i = 0; i < seedStr.length; i++) {
-          hash ^= seedStr.charCodeAt(i);
-          hash = Math.imul(hash, 16777619);
-        }
-        const rnd = () => {
-          hash ^= hash << 13;
-          hash ^= hash >>> 17;
-          hash ^= hash << 5;
-          return ((hash >>> 0) % 10000) / 10000;
-        };
-
-        const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, '#0F172A');
-        g.addColorStop(0.55, '#312E81');
-        g.addColorStop(1, '#D97706');
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-
-        for (let i = 0; i < 8; i++) {
-          const cx = rnd() * w;
-          const cy = rnd() * h;
-          const rad = (0.14 + rnd() * 0.3) * Math.max(w, h);
-          const orb = ctx.createRadialGradient(cx, cy, 4, cx, cy, rad);
-          orb.addColorStop(0, 'rgba(251, 191, 36, 0.35)');
-          orb.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = orb;
-          ctx.beginPath();
-          ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.fillStyle = '#F5F5F7';
-        ctx.font = `600 ${Math.max(14, Math.round(Math.min(w, h) * 0.028))}px "Plus Jakarta Sans", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(`ShivaLali • Seed ${item.seed}`, w / 2, h / 2);
-
-        return canvas.toDataURL('image/png');
-      }
-
       function showOutput(item) {
         state.activeItem = item;
         $('emptyState').classList.add('hidden');
@@ -466,6 +422,14 @@
         const img = $('resultImg');
         img.src = item.imageUrl;
         img.classList.remove('hidden');
+      }
+
+      function showNoticeInViewport(titleText, descText) {
+        $('resultImg').classList.add('hidden');
+        $('downloadBtn').disabled = true;
+        $('emptyTitle').textContent = titleText;
+        $('emptyDesc').textContent = descText;
+        $('emptyState').classList.remove('hidden');
       }
 
       function renderLists() {
@@ -514,44 +478,57 @@
         }
 
         const baseSeed = Number($('seedInput').value) || Math.floor(100000 + Math.random() * 900000);
-        const apiKey = localStorage.getItem('shivalali_key') || '';
+        const apiKey = getActiveApiKey();
         $('loaderLayer').classList.remove('hidden');
 
         const created = [];
-        let sourceLabel = 'Studio';
+        let lastError = '';
+        let sourceLabel = '';
 
         for (let i = 0; i < state.variations; i++) {
           const itemSeed = baseSeed + i * 97 + Math.floor(Math.random() * 30);
-          const fullPrompt = buildRichPrompt(raw, i);
+          const fullPrompt = buildPrompt(raw, i);
           $('loaderLabel').textContent = `Generating ${i + 1} of ${state.variations}...`;
 
           let imageUrl = null;
 
           if (apiKey) {
-            imageUrl = await tryUserApiKey(fullPrompt, apiKey, state.ratio, itemSeed);
-            if (imageUrl) sourceLabel = 'API Key';
+            const res = await generateWithUserKey(fullPrompt, apiKey, state.ratio, itemSeed);
+            if (res.url) {
+              imageUrl = res.url;
+              sourceLabel = 'API Key';
+            } else if (res.error) {
+              lastError = res.error;
+            }
           }
 
           if (!imageUrl) {
-            imageUrl = await tryFreeAiEndpoint(fullPrompt, state.ratio, itemSeed);
+            imageUrl = await generateWithFreeFallback(fullPrompt, state.ratio, itemSeed);
             if (imageUrl) sourceLabel = 'Free AI API';
           }
 
-          if (!imageUrl) {
-            imageUrl = buildStudioFallback({ prompt: raw, seed: itemSeed, ratio: state.ratio }, i);
-            sourceLabel = 'Studio Preview';
+          if (imageUrl) {
+            created.push({
+              id: Date.now() + i,
+              seed: itemSeed,
+              prompt: raw,
+              ratio: state.ratio,
+              imageUrl
+            });
           }
-
-          created.push({
-            id: Date.now() + i,
-            seed: itemSeed,
-            prompt: raw,
-            ratio: state.ratio,
-            imageUrl
-          });
         }
 
         $('loaderLayer').classList.add('hidden');
+
+        if (!created.length) {
+          const msg = apiKey
+            ? `API issue: ${lastError || 'Check your API key or billing/quota in Google AI Studio.'}`
+            : 'No API key added and free AI server did not respond. Click ⚙ to add your API key.';
+          showNoticeInViewport('Image Not Generated', msg);
+          notify('Generation failed');
+          return;
+        }
+
         state.history = [...created.reverse(), ...state.history].slice(0, 24);
         renderLists();
         showOutput(created[0]);
@@ -611,7 +588,7 @@
         const txt = $('promptInput').value.trim();
         if (!txt) return notify('Enter prompt');
         state.saved = [{ id: Date.now(), text: txt }, ...state.saved].slice(0, 20);
-        try { localStorage.setItem('shivalali_saved_v5', JSON.stringify(state.saved)); } catch (e) {}
+        try { localStorage.setItem('shivalali_saved_v6', JSON.stringify(state.saved)); } catch (e) {}
         renderLists();
         notify('Saved');
       };
@@ -634,7 +611,7 @@
             const arr = JSON.parse(String(ev.target.result));
             if (Array.isArray(arr)) {
               state.saved = [...arr, ...state.saved].slice(0, 25);
-              try { localStorage.setItem('shivalali_saved_v5', JSON.stringify(state.saved)); } catch (err) {}
+              try { localStorage.setItem('shivalali_saved_v6', JSON.stringify(state.saved)); } catch (err) {}
               renderLists();
               notify('Imported');
             }
@@ -643,7 +620,7 @@
         r.readAsText(f);
       };
       $('apiBtn').onclick = () => {
-        $('geminiKeyInput').value = localStorage.getItem('shivalali_key') || '';
+        $('geminiKeyInput').value = localStorage.getItem('shivalali_key') || DEFAULT_API_KEY || '';
         $('apiModal').classList.remove('hidden');
       };
       $('closeApiBtn').onclick = () => $('apiModal').classList.add('hidden');
