@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShivaLali — AI Photorealistic Image & Cinematic Video Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            obsidian: '#09090B',
+            violetGlow: '#7C3AED',
+            goldAccent: '#F59E0B',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #09090B;
+      color: #F4F4F5;
+      font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+      margin: 0;
+      overflow-x: hidden;
+    }
+    .glass-panel {
+      background: rgba(17, 17, 22, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .glass-dock {
+      background: rgba(14, 14, 19, 0.86);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.5); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Replace LOGO_URL later when you upload your ShivaLali logo
+    const LOGO_URL = "";
+
+    const ASPECT_RATIOS = [
+      { id: '16:9', label: '16:9', subtitle: 'Widescreen Landscape', w: 640, h: 360, cssRatio: '16 / 9' },
+      { id: '9:16', label: '9:16', subtitle: 'Vertical Fullscreen', w: 324, h: 576, cssRatio: '9 / 16' },
+      { id: '4:5',  label: '4:5',  subtitle: 'Portrait Frame', w: 400, h: 500, cssRatio: '4 / 5' },
+      { id: '2:3',  label: '2:3',  subtitle: 'Tall Editorial', w: 360, h: 540, cssRatio: '2 / 3' },
+      { id: '1:1',  label: '1:1',  subtitle: 'Balanced Square', w: 460, h: 460, cssRatio: '1 / 1' },
+      { id: '1.91:1', label: '1.91:1', subtitle: 'Campaign Wide', w: 668, h: 350, cssRatio: '1.91 / 1' },
+      { id: '21:9', label: '21:9', subtitle: 'Cinema Ultrawide', w: 700, h: 300, cssRatio: '21 / 9' },
+      { id: '4:3',  label: '4:3',  subtitle: 'Classic Studio', w: 560, h: 420, cssRatio: '4 / 3' },
+    ];
+
+    const STYLE_PRESETS = [
+      { id: 'candid', name: 'Raw Candid Photo', tag: 'Natural & Unposed' },
+      { id: 'product', name: 'Commercial Studio', tag: 'Clean & Crisp Detail' },
+      { id: 'editorial', name: 'Editorial Lifestyle', tag: 'Rich Natural Light' },
+      { id: 'cinema', name: 'Cinematic Film Still', tag: '35mm Anamorphic' },
+      { id: 'drone', name: 'Aerial Perspective', tag: 'High-Altitude View' },
+    ];
+
+    const CAMERA_LENSES = ['24mm f/1.4', '35mm f/1.8', '50mm f/1.2', '85mm f/1.4', '16mm Ultra-Wide'];
+    const LIGHTING_MODES = ['Golden Hour Natural', 'Rembrandt Studio', 'Moody Rim Light', 'Soft Diffused Daylight', 'Neon Night Rain'];
+
+    function enhancePromptText(rawPrompt, presetId, lens, lighting, mode) {
+      const base = rawPrompt.trim() || 'modern architectural glass villa overlooking misty hills at golden hour';
+      const presetMap = {
+        candid: 'unposed candid documentary photograph, natural skin pores and fine hair texture, authentic film grain, Kodak Portra 400 color science, clean uncluttered composition',
+        product: 'hero commercial studio photography, crisp reflections, tactile surface micro-detail, balanced negative space, luxury lighting, campaign grade',
+        editorial: 'high-end lifestyle editorial photography, balanced composition, natural depth of field, rich organic shadows, gallery print quality',
+        cinema: 'cinematic film still, anamorphic lens flare, rich shadow falloff, atmospheric haze, ARRI Alexa 65 color grading, motion depth',
+        drone: 'high-resolution aerial drone photograph, sweeping architectural and landscape scale, crisp atmospheric perspective, natural horizon light'
+      };
+      const motionSuffix = mode === 'video'
+        ? ', smooth slow camera dolly movement, natural physics motion, 24fps cinematic cadence'
+        : '';
+      return `${base}, ${presetMap[presetId] || presetMap.editorial}, shot on ${lens}, ${lighting}, raw unedited photography, 8k resolution${motionSuffix} --no cartoon, 3d render, plastic skin, wax figure, CGI, oversaturated, watermark, embedded gibberish text, distorted anatomy`;
+    }
+
+    function renderProceduralCanvas(canvas, item) {
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      const seedStr = (item.prompt || 'ShivaLali') + item.id;
+      let hash = 2166136261;
+      for (let i = 0; i < seedStr.length; i++) {
+        hash ^= seedStr.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      const rand = () => {
+        hash ^= hash << 13;
+        hash ^= hash >>> 17;
+        hash ^= hash << 5;
+        return ((hash >>> 0) % 10000) / 10000;
+      };
+
+      const palettes = {
+        candid: ['#1C1917', '#78350F', '#D97706', '#FDE68A'],
+        product: ['#09090B', '#27272A', '#7C3AED', '#F59E0B'],
+        editorial: ['#18181B', '#4C1D95', '#C084FC', '#FEF3C7'],
+        cinema: ['#050816', '#1E1B4B', '#7C3AED', '#F59E0B'],
+        drone: ['#0C192C', '#134E4A', '#0D9488', '#FDE68A']
+      };
+      const pal = palettes[item.preset] || palettes.cinema;
+
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, pal[0]);
+      grad.addColorStop(0.55, pal[1]);
+      grad.addColorStop(1, pal[2]);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      for (let i = 0; i < 9; i++) {
+        const cx = rand() * w;
+        const cy = rand() * h;
+        const radius = (0.12 + rand() * 0.35) * Math.max(w, h);
+        const orb = ctx.createRadialGradient(cx, cy, 2, cx, cy, radius);
+        const col = i % 2 === 0 ? pal[3] : pal[2];
+        orb.addColorStop(0, col + '55');
+        orb.addColorStop(0.6, col + '18');
+        orb.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = orb;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const horizonY = h * (0.52 + (rand() - 0.5) * 0.16);
+      ctx.fillStyle = 'rgba(9, 9, 11, 0.42)';
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      for (let x = 0; x <= w + 40; x += 40) {
+        const wave = Math.sin(x * 0.008 + rand() * 0.4) * (h * 0.06) + Math.cos(x * 0.02) * (h * 0.03);
+        ctx.lineTo(x, horizonY + wave);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const grain = (rand() - 0.5) * 18;
+        data[i] = Math.min(255, Math.max(0, data[i] + grain));
+        data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
+        data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      const vig = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.25, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(9,9,11,0.68)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, w, h);
+
+      if (item.watermarked) {
+        ctx.save();
+        ctx.font = `700 ${Math.max(14, Math.round(Math.min(w, h) * 0.044))}px "Plus Jakarta Sans", sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(-0.24);
+        ctx.fillText('ShivaLali • Preview', 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function App() {
+      const [isOwner, setIsOwner] = useState(false);
+      const [credits, setCredits] = useState(3);
+      const [sidebarOpen, setSidebarOpen] = useState(true);
+
+      const [mode, setMode] = useState('image');
+      const [aspectRatio, setAspectRatio] = useState(ASPECT_RATIOS[0]);
+      const [preset, setPreset] = useState('editorial');
+      const [lens, setLens] = useState('35mm f/1.8');
+      const [lighting, setLighting] = useState('Golden Hour Natural');
+
+      const [prompt, setPrompt] = useState('');
+      const [enhancedPrompt, setEnhancedPrompt] = useState('');
+      const [isEnhancing, setIsEnhancing] = useState(false);
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [progress, setProgress] = useState(0);
+
+      const [activeOutput, setActiveOutput] = useState(null);
+      const [history, setHistory] = useState([]);
+      const [toast, setToast] = useState(null);
+
+      const [showOwnerModal, setShowOwnerModal] = useState(false);
+      const [passcodeInput, setPasscodeInput] = useState('');
+      const [passcodeError, setPasscodeError] = useState('');
+
+      const [showPricingModal, setShowPricingModal] = useState(false);
+      const [selectedPlan, setSelectedPlan] = useState(null);
+      const [paymentMethod, setPaymentMethod] = useState('UPI');
+      const [paymentSuccess, setPaymentSuccess] = useState('');
+
+      const [showApiModal, setShowApiModal] = useState(false);
+      const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('shivalali_gemini_key') || '');
+      const [customEndpoint, setCustomEndpoint] = useState(() => localStorage.getItem('shivalali_custom_endpoint') || '');
+
+      const canvasRef = useRef(null);
+
+      const notify = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3200);
+      };
+
+      useEffect(() => {
+        if (activeOutput && !activeOutput.imageUrl && canvasRef.current) {
+          renderProceduralCanvas(canvasRef.current, activeOutput);
+        }
+      }, [activeOutput]);
+
+      const handleMagicEnhance = async () => {
+        setIsEnhancing(true);
+        const base = prompt.trim() || 'luxury modern family villa exterior with manicured lawn at golden hour';
+
+        if (geminiKey.trim()) {
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey.trim())}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [{
+                      text: `Expand this into a single concise ultra-photorealistic ${mode} generation prompt. Include camera lens (${lens}), lighting (${lighting}), style (${preset}), authentic textures, balanced negative space, 8k raw photography, and end with "--no cartoon, 3d render, plastic skin, CGI, watermark". Input: "${base}"`
+                    }]
+                  }]
+                })
+              }
+            );
+            const data = await res.json();
+            const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (aiText) {
+              setEnhancedPrompt(aiText);
+              setPrompt(aiText);
+              setIsEnhancing(false);
+              notify('Magic Prompt Enhanced');
+              return;
+            }
+          } catch (e) {}
+        }
+
+        await new Promise((r) => setTimeout(r, 500));
+        const expanded = enhancePromptText(base, preset, lens, lighting, mode);
+        setEnhancedPrompt(expanded);
+        setPrompt(expanded);
+        setIsEnhancing(false);
+        notify('Magic Prompt Enhanced');
+      };
+
+      const handleGenerate = async () => {
+        if (!isOwner && credits <= 0) {
+          setShowPricingModal(true);
+          notify('0 Free Credits left — Upgrade to continue');
+          return;
+        }
+
+        const finalPrompt = (enhancedPrompt || prompt).trim() || enhancePromptText('serene coastal cliffside villa at sunrise', preset, lens, lighting, mode);
+        setIsGenerating(true);
+        setProgress(12);
+
+        const timer = setInterval(() => {
+          setProgress((p) => (p < 88 ? p + Math.floor(Math.random() * 14) + 6 : p));
+        }, 220);
+
+        let generatedImageUrl = null;
+        const supportedImagenRatios = ['1:1', '3:4', '4:3', '9:16', '16:9'];
+        const apiRatio = supportedImagenRatios.includes(aspectRatio.id) ? aspectRatio.id : '16:9';
+
+        if (geminiKey.trim() && mode === 'image') {
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(geminiKey.trim())}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  instances: [{ prompt: finalPrompt }],
+                  parameters: { sampleCount: 1, aspectRatio: apiRatio }
+                })
+              }
+            );
+            const data = await res.json();
+            const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
+            const mime = data?.predictions?.[0]?.mimeType || 'image/png';
+            if (b64) {
+              generatedImageUrl = `data:${mime};base64,${b64}`;
+            }
+          } catch (err) {}
+        }
+
+        await new Promise((r) => setTimeout(r, 1000));
+        clearInterval(timer);
+        setProgress(100);
+
+        const newItem = {
+          id: Date.now(),
+          mode,
+          prompt: finalPrompt,
+          preset,
+          lens,
+          lighting,
+          ratio: aspectRatio,
+          watermarked: !isOwner,
+          imageUrl: generatedImageUrl,
+          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        if (!isOwner) {
+          setCredits((c) => Math.max(0, c - 1));
+        }
+
+        setActiveOutput(newItem);
+        setHistory((prev) => [newItem, ...prev.slice(0, 19)]);
+        setIsGenerating(false);
+        setTimeout(() => setProgress(0), 400);
+        notify(isOwner ? 'Generated (Owner Unlimited • Clean Export)' : 'Generated (1 Credit Used)');
+      };
+
+      const handleDownloadHighRes = () => {
+        if (!activeOutput) return;
+        const filename = `ShivaLali-${activeOutput.mode}-${activeOutput.ratio.id.replace(':', 'x')}-${activeOutput.id}.png`;
+        if (activeOutput.imageUrl) {
+          const link = document.createElement('a');
+          link.href = activeOutput.imageUrl;
+          link.download = filename;
+          link.click();
+          notify('High-Res Export Downloaded');
+          return;
+        }
+        if (canvasRef.current) {
+          const link = document.createElement('a');
+          link.href = canvasRef.current.toDataURL('image/png', 1.0);
+          link.download = filename;
+          link.click();
+          notify('High-Res PNG Exported');
+        }
+      };
+
+      const handleCopyPrompt = () => {
+        const textToCopy = (enhancedPrompt || prompt || activeOutput?.prompt || '').trim();
+        if (!textToCopy) {
+          notify('Enter or enhance a prompt first');
+          return;
+        }
+        navigator.clipboard?.writeText(textToCopy);
+        notify('Enhanced Prompt Copied');
+      };
+
+      const handleUnlockOwner = (e) => {
+        e.preventDefault();
+        if (passcodeInput.trim() === 'ADMIN123') {
+          setIsOwner(true);
+          setShowOwnerModal(false);
+          setPasscodeInput('');
+          setPasscodeError('');
+          notify('ShivaLali Owner Unlimited Mode Activated');
+        } else {
+          setPasscodeError('Invalid passcode. Hint: ADMIN123');
+        }
+      };
+
+      const handleCompleteCheckout = (plan) => {
+        setPaymentSuccess(`Processing ${paymentMethod} for ${plan.name} (${plan.price})...`);
+        setTimeout(() => {
+          setCredits((c) => c + plan.creditBonus);
+          setPaymentSuccess('');
+          setSelectedPlan(null);
+          setShowPricingModal(false);
+          notify(`${plan.name} Activated! +${plan.creditBonus} Credits Added`);
+        }, 900);
+      };
+
+      const saveApiSettings = () => {
+        localStorage.setItem('shivalali_gemini_key', geminiKey.trim());
+        localStorage.setItem('shivalali_custom_endpoint', customEndpoint.trim());
+        setShowApiModal(false);
+        notify('API Configuration Saved');
+      };
+
+      const plans = [
+        {
+          id: 'starter',
+          name: 'Starter',
+          price: '₹199',
+          period: '/month',
+          badge: null,
+          creditBonus: 100,
+          features: ['100 Generations / mo', 'All Standard Aspect Ratios', 'Commercial License', 'Fast Cloud Queue']
+        },
+        {
+          id: 'pro',
+          name: 'Pro Studio',
+          price: '₹499',
+          period: '/month',
+          badge: 'Most Popular',
+          creditBonus: 500,
+          features: ['500 Generations / mo', 'Every Aspect Ratio Unlocked', 'Full Commercial Rights', 'Zero Watermark Export']
+        },
+        {
+          id: 'agency',
+          name: 'Unlimited',
+          price: '₹999',
+          period: '/month',
+          badge: 'Scale Tier',
+          creditBonus: 9999,
+          features: ['Unlimited Generations', '4K High-Res Upscaling', 'Priority Video Rendering', 'Full Commercial Rights']
+        }
+      ];
+
+      return (
+        <div className="min-h-screen bg-[#09090B] text-zinc-100 flex flex-col relative selection:bg-violet-600/40 selection:text-amber-200">
+          {/* Ambient Glows */}
+          <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+            <div className="absolute -top-36 left-1/4 w-[480px] h-[480px] rounded-full bg-[#7C3AED]/15 blur-[130px]" />
+            <div className="absolute bottom-0 right-1/5 w-[420px] h-[420px] rounded-full bg-[#F59E0B]/10 blur-[140px]" />
+          </div>
+
+          {/* Toast */}
+          {toast && (
+            <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 glass-panel px-4 py-2 rounded-full text-xs font-medium text-amber-200 border border-amber-400/30 shadow-2xl">
+              {toast}
+            </div>
+          )}
+
+          {/* Top Navigation Bar */}
+          <header className="sticky top-0 z-30 h-16 glass-panel border-b border-white/10 px-4 lg:px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition cursor-pointer"
+                title="Toggle Studio Controls"
+              >
+                ☰
+              </button>
+              <div className="flex items-center gap-2.5">
+                {LOGO_URL ? (
+                  <img
+                    src={LOGO_URL}
+                    alt="ShivaLali"
+                    className="h-9 w-auto object-contain rounded-lg"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7C3AED] to-[#F59E0B] flex items-center justify-center font-display font-bold text-xs text-white shadow-lg shadow-violet-600/25">
+                    SL
+                  </div>
+                )}
+                <span className="font-display font-bold tracking-tight text-lg sm:text-xl text-white">
+                  ShivaLali
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              {isOwner ? (
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-gradient-to-r from-amber-500/25 via-yellow-400/20 to-amber-500/25 text-amber-300 border border-amber-400/50 shadow-[0_0_20px_rgba(245,158,11,0.35)]">
+                    ✦ Owner • Unlimited
+                  </span>
+                  <button
+                    onClick={() => setIsOwner(false)}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 transition cursor-pointer"
+                  >
+                    Exit
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-zinc-300 font-medium">{credits} Free Credits Left</span>
+                  </div>
+                  <button
+                    onClick={() => setShowPricingModal(true)}
+                    className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-[#7C3AED] to-[#9333EA] hover:from-[#8B5CF6] hover:to-[#A855F7] text-white shadow-lg shadow-violet-600/25 transition cursor-pointer"
+                  >
+                    Upgrade / Pricing
+                  </button>
+                  <button
+                    onClick={() => setShowOwnerModal(true)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/5 hover:bg-white/10 border border-amber-400/30 text-amber-300 transition cursor-pointer"
+                  >
+                    Owner Access
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => setShowApiModal(true)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-amber-300 transition cursor-pointer"
+                title="API & Engine Settings"
+              >
+                ⚙
+              </button>
+            </div>
+          </header>
+
+          {/* Main Workspace */}
+          <div className="flex-1 flex relative z-10">
+            {/* Collapsible Left Sidebar */}
+            {sidebarOpen && (
+              <aside className="w-72 shrink-0 glass-panel border-r border-white/10 p-4 flex flex-col gap-5 overflow-y-auto max-h-[calc(100vh-4rem)]">
+                {/* Media Format */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-2">
+                    Creation Mode
+                  </label>
+                  <div className="grid grid-cols-2 p-1 rounded-xl bg-black/50 border border-white/10">
+                    <button
+                      onClick={() => setMode('image')}
+                      className={`py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        mode === 'image'
+                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] text-white shadow'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Photoreal Image
+                    </button>
+                    <button
+                      onClick={() => setMode('video')}
+                      className={`py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        mode === 'video'
+                          ? 'bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-zinc-950 shadow'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Cinematic Video
+                    </button>
+                  </div>
+                </div>
+
+                {/* Aspect Ratios */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-2">
+                    Aspect Ratio
+                  </label>
+                  <div className="space-y-1.5">
+                    {ASPECT_RATIOS.map((ar) => {
+                      const active = aspectRatio.id === ar.id;
+                      return (
+                        <button
+                          key={ar.id}
+                          onClick={() => setAspectRatio(ar)}
+                          className={`w-full px-3 py-2 rounded-xl border text-left flex items-center justify-between transition cursor-pointer ${
+                            active
+                              ? 'bg-violet-600/20 border-violet-400/50 text-white'
+                              : 'bg-white/[0.02] border-white/10 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-semibold text-zinc-100">{ar.label}</div>
+                            <div className="text-[10px] text-zinc-400">{ar.subtitle}</div>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded ${active ? 'bg-amber-400/20 text-amber-300' : 'bg-white/5 text-zinc-500'}`}>
+                            {ar.id}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Visual Style */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-2">
+                    Photography & Film Style
+                  </label>
+                  <div className="space-y-1.5">
+                    {STYLE_PRESETS.map((sp) => (
+                      <button
+                        key={sp.id}
+                        onClick={() => setPreset(sp.id)}
+                        className={`w-full px-3 py-2 rounded-xl border text-left transition cursor-pointer ${
+                          preset === sp.id
+                            ? 'bg-amber-500/15 border-amber-400/50 text-amber-200'
+                            : 'bg-white/[0.02] border-white/10 text-zinc-400 hover:bg-white/[0.06]'
+                        }`}
+                      >
+                        <div className="text-xs font-medium">{sp.name}</div>
+                        <div className="text-[10px] opacity-70">{sp.tag}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Camera & Lighting */}
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1.5">
+                      Camera Lens
+                    </label>
+                    <select
+                      value={lens}
+                      onChange={(e) => setLens(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-zinc-200 focus:outline-none focus:border-violet-400"
+                    >
+                      {CAMERA_LENSES.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1.5">
+                      Lighting Setup
+                    </label>
+                    <select
+                      value={lighting}
+                      onChange={(e) => setLighting(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-zinc-200 focus:outline-none focus:border-violet-400"
+                    >
+                      {LIGHTING_MODES.map((lt) => <option key={lt} value={lt}>{lt}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </aside>
+            )}
+
+            {/* Center Canvas + Prompt Dock + History */}
+            <main className="flex-1 flex flex-col justify-between p-4 lg:p-6 gap-4 overflow-y-auto">
+              {/* Top Action Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-zinc-200 font-medium">
+                    {mode === 'image' ? 'Photoreal Image' : 'Cinematic Video'}
+                  </span>
+                  <span>•</span>
+                  <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-zinc-200 font-medium">
+                    {aspectRatio.label} ({aspectRatio.subtitle})
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyPrompt}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 transition cursor-pointer"
+                  >
+                    Copy Prompt
+                  </button>
+                  <button
+                    onClick={handleDownloadHighRes}
+                    disabled={!activeOutput}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 disabled:opacity-40 transition cursor-pointer"
+                  >
+                    Download High-Res {isOwner ? '(Clean)' : ''}
+                  </button>
+                </div>
+              </div>
+
+              {/* HD Preview Viewport */}
+              <div className="flex-1 min-h-[290px] flex items-center justify-center py-2">
+                <div
+                  style={{
+                    aspectRatio: aspectRatio.cssRatio,
+                    maxWidth: '100%',
+                    maxHeight: '52vh',
+                    width: aspectRatio.id === '9:16' ? '280px' : aspectRatio.id === '2:3' ? '320px' : aspectRatio.id === '4:5' ? '360px' : '680px'
+                  }}
+                  className="relative w-full h-full rounded-2xl glass-panel border border-white/15 overflow-hidden flex items-center justify-center transition-all duration-500 shadow-[0_0_60px_rgba(124,58,237,0.14)]"
+                >
+                  {isGenerating && (
+                    <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-md flex flex-col items-center justify-center gap-3 p-6 text-center">
+                      <div className="w-10 h-10 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                      <div className="text-xs font-semibold tracking-wider uppercase text-amber-300">
+                        Rendering {mode === 'video' ? 'Cinematic Video' : '8K Photorealism'} • {progress}%
+                      </div>
+                      <div className="w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          style={{ width: `${progress}%` }}
+                          className="h-full bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeOutput ? (
+                    activeOutput.imageUrl ? (
+                      <img
+                        src={activeOutput.imageUrl}
+                        alt={activeOutput.prompt}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <canvas
+                        ref={canvasRef}
+                        width={aspectRatio.w}
+                        height={aspectRatio.h}
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : (
+                    <div className="p-6 text-center max-w-md">
+                      <div className="text-xs tracking-wide text-amber-400 font-semibold mb-2">
+                        ShivaLali Studio • {aspectRatio.label}
+                      </div>
+                      <p className="text-sm text-zinc-300 mb-1">
+                        Describe your vision below, then click <span className="text-violet-300 font-medium">Magic Enhance</span> or <span className="text-amber-300 font-medium">Generate</span>.
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        Ultra-photorealistic images and smooth cinematic video rendering.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Glassmorphic Prompt Dock */}
+              <div className="glass-dock rounded-2xl p-3 sm:p-4 shadow-2xl">
+                <div className="flex flex-col gap-2.5">
+                  <textarea
+                    rows={2}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe your scene in detail (e.g., sunlit modern architectural home, minimalist luxury product on marble, candid golden hour portrait)..."
+                    className="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleMagicEnhance}
+                        disabled={isEnhancing}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-violet-600/25 hover:bg-violet-600/40 border border-violet-400/40 text-violet-200 transition cursor-pointer"
+                      >
+                        {isEnhancing ? 'Enhancing...' : '✦ Magic Enhance Prompt'}
+                      </button>
+                      <span className="hidden sm:inline text-[11px] text-zinc-500">
+                        {lens} • {lighting}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#7C3AED] via-[#8B5CF6] to-[#F59E0B] text-white shadow-lg shadow-violet-600/30 hover:opacity-95 disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {isGenerating
+                        ? 'Generating...'
+                        : isOwner
+                          ? `Generate Unlimited (${mode === 'image' ? 'Image' : 'Video'})`
+                          : `Generate (${credits} Credits Left)`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Creations History Strip */}
+              <div className="glass-panel rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-400">
+                    My Creations History ({history.length})
+                  </span>
+                  {history.length > 0 && (
+                    <span className="text-[11px] text-zinc-500">Click any item to reload in canvas</span>
+                  )}
+                </div>
+                {history.length === 0 ? (
+                  <div className="text-xs text-zinc-500 py-2">
+                    No creations yet. Your generated images and videos will appear here for 1-click reuse.
+                  </div>
+                ) : (
+                  <div className="flex gap-2.5 overflow-x-auto pb-1">
+                    {history.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setAspectRatio(item.ratio);
+                          setMode(item.mode);
+                          setPrompt(item.prompt);
+                          setActiveOutput(item);
+                        }}
+                        className="shrink-0 w-36 p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-left transition cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
+                          <span>{item.ratio.label}</span>
+                          <span>{item.mode.toUpperCase()}</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-300 line-clamp-2">{item.prompt}</p>
+                        <div className="text-[10px] text-zinc-500 mt-1">{item.createdAt}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </main>
+          </div>
+
+          {/* Owner / Admin Modal */}
+          {showOwnerModal && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="glass-panel max-w-sm w-full rounded-2xl p-6 border border-amber-400/30">
+                <h3 className="font-display font-bold text-lg text-white mb-1">ShivaLali Owner Access</h3>
+                <p className="text-xs text-zinc-400 mb-4">
+                  Unlock unlimited generations, zero watermarks, and full commercial exports.
+                </p>
+                <form onSubmit={handleUnlockOwner} className="space-y-3">
+                  <input
+                    type="password"
+                    value={passcodeInput}
+                    onChange={(e) => setPasscodeInput(e.target.value)}
+                    placeholder="Enter passcode (ADMIN123)"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                  {passcodeError && <p className="text-xs text-rose-400">{passcodeError}</p>}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowOwnerModal(false); setPasscodeError(''); }}
+                      className="px-4 py-2 rounded-xl text-xs bg-white/5 hover:bg-white/10 text-zinc-300 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-yellow-400 text-zinc-950 cursor-pointer"
+                    >
+                      Unlock Unlimited
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* SaaS Pricing Modal */}
+          {showPricingModal && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+              <div className="glass-panel max-w-4xl w-full rounded-2xl p-6 border border-white/15 my-auto">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="font-display font-bold text-xl text-white">Upgrade ShivaLali</h3>
+                    <p className="text-xs text-zinc-400">Studio-grade photorealistic images & cinematic video generation.</p>
+                  </div>
+                  <button
+                    onClick={() => { setShowPricingModal(false); setSelectedPlan(null); }}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300 cursor-pointer"
+                  >
+                    Close ✕
+                  </button>
+                </div>
+
+                {!selectedPlan ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {plans.map((plan) => {
+                      const popular = plan.badge === 'Most Popular';
+                      return (
+                        <div
+                          key={plan.id}
+                          className={`rounded-2xl p-5 flex flex-col justify-between border ${
+                            popular
+                              ? 'bg-violet-950/35 border-amber-400/60 shadow-[0_0_30px_rgba(245,158,11,0.18)]'
+                              : 'bg-white/[0.03] border-white/10'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-display font-bold text-sm text-white">{plan.name}</span>
+                              {plan.badge && (
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                                  {plan.badge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-baseline gap-1 mb-4">
+                              <span className="font-display font-extrabold text-3xl text-white">{plan.price}</span>
+                              <span className="text-xs text-zinc-400">{plan.period}</span>
+                            </div>
+                            <ul className="space-y-2 text-xs text-zinc-300 mb-6">
+                              {plan.features.map((f) => (
+                                <li key={f} className="flex items-center gap-2">
+                                  <span className="text-amber-400">✓</span>
+                                  <span>{f}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <button
+                            onClick={() => setSelectedPlan(plan)}
+                            className={`w-full py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                              popular
+                                ? 'bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] text-white'
+                                : 'bg-white/10 hover:bg-white/15 text-white'
+                            }`}
+                          >
+                            Select {plan.name}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="max-w-md mx-auto bg-black/40 border border-white/10 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-zinc-400">Selected Plan</div>
+                        <div className="font-display font-bold text-base text-white">
+                          {selectedPlan.name} — <span className="text-amber-300">{selectedPlan.price}{selectedPlan.period}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedPlan(null)}
+                        className="text-xs text-violet-300 hover:underline cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-zinc-400 block mb-2">Choose Payment Gateway</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['UPI', 'Razorpay', 'Stripe'].map((method) => (
+                          <button
+                            key={method}
+                            onClick={() => setPaymentMethod(method)}
+                            className={`py-2 rounded-xl text-xs font-semibold border cursor-pointer ${
+                              paymentMethod === method
+                                ? 'bg-violet-600/30 border-violet-400 text-white'
+                                : 'bg-white/5 border-white/10 text-zinc-400'
+                            }`}
+                          >
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {paymentSuccess && (
+                      <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-xl p-3">
+                        {paymentSuccess}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => handleCompleteCheckout(selectedPlan)}
+                      className="w-full py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] text-white cursor-pointer"
+                    >
+                      Pay {selectedPlan.price} via {paymentMethod}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* API Settings Modal */}
+          {showApiModal && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="glass-panel max-w-md w-full rounded-2xl p-6 border border-white/15 space-y-4">
+                <div>
+                  <h3 className="font-display font-bold text-lg text-white">API & Engine Settings</h3>
+                  <p className="text-xs text-zinc-400">
+                    Connect your Google Gemini / Imagen API key here. Works seamlessly even without keys.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-300 block mb-1">Google Gemini / Imagen API Key</label>
+                  <input
+                    type="password"
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
+                    placeholder="AIza..."
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white focus:outline-none focus:border-violet-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-300 block mb-1">Custom Video / ComfyUI Endpoint (Optional)</label>
+                  <input
+                    type="text"
+                    value={customEndpoint}
+                    onChange={(e) => setCustomEndpoint(e.target.value)}
+                    placeholder="https://your-colab-tunnel.trycloudflare.com"
+                    className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white focus:outline-none focus:border-violet-400"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowApiModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs bg-white/5 hover:bg-white/10 text-zinc-300 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveApiSettings}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] text-white cursor-pointer"
+                  >
+                    Save Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
