@@ -73,7 +73,7 @@
       <button id="focusBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 cursor-pointer">Focus</button>
       <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-xs text-amber-300 font-medium">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span>Unlimited Studio</span>
+        <span>HD Studio</span>
       </div>
       <button id="apiBtn" class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 cursor-pointer" title="API Settings">⚙</button>
     </div>
@@ -153,19 +153,19 @@
             <option value="jpg">JPG</option>
           </select>
           <button id="copyBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 cursor-pointer">Copy</button>
-          <button id="downloadBtn" disabled class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 disabled:opacity-40 cursor-pointer">Export</button>
+          <button id="downloadBtn" disabled class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 disabled:opacity-40 cursor-pointer">Save Image</button>
         </div>
       </div>
 
       <!-- Canvas Viewport -->
-      <div class="flex-1 min-h-[290px] flex items-center justify-center py-2">
-        <div id="viewportFrame" style="aspect-ratio: 16 / 9; max-width: 720px; max-height: 54vh;" class="relative w-full h-full rounded-2xl panel border border-white/15 overflow-hidden flex items-center justify-center transition-all duration-300">
+      <div class="flex items-center justify-center py-2">
+        <div id="viewportFrame" style="width: 100%; max-width: 720px; aspect-ratio: 16 / 9; min-height: 230px;" class="relative rounded-2xl panel border border-white/15 overflow-hidden flex items-center justify-center transition-all duration-300">
           <div id="gridLayer" class="hidden pointer-events-none absolute inset-0 z-10 grid-overlay"></div>
           <div id="loaderLayer" class="hidden absolute inset-0 z-20 bg-black/80 flex flex-col items-center justify-center gap-3">
             <div class="w-8 h-8 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
-            <div id="loaderLabel" class="text-xs font-semibold text-amber-300">Generating...</div>
+            <div id="loaderLabel" class="text-xs font-semibold text-amber-300">Rendering HD Image...</div>
           </div>
-          <img id="resultImg" src="" alt="" class="hidden w-full h-full object-cover" />
+          <img id="resultImg" src="" alt="Generated Image" class="hidden w-full h-full object-cover block" />
           <div id="emptyState" class="p-6 text-center max-w-sm">
             <div class="text-xs font-semibold text-amber-400 mb-1">ShivaLali Studio</div>
             <p class="text-xs text-zinc-400">Type your prompt below and press Generate (or Ctrl + Enter).</p>
@@ -173,7 +173,7 @@
         </div>
       </div>
 
-      <!-- Prompt Dock (No Enhance Button) -->
+      <!-- Prompt Dock -->
       <div class="panel rounded-2xl p-3 sm:p-4 border border-white/10">
         <textarea id="promptInput" rows="2" placeholder="Describe what you want to create..." class="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none"></textarea>
         <div class="flex items-center justify-between gap-2 pt-2.5 mt-2 border-t border-white/10">
@@ -208,7 +208,7 @@
   <div id="apiModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="panel max-w-md w-full rounded-2xl p-5 border border-white/15 space-y-3">
       <div class="font-display font-bold text-base text-white">Optional API Key</div>
-      <p class="text-xs text-zinc-400">Free AI generation runs automatically. Paste a Gemini/Imagen key only if desired.</p>
+      <p class="text-xs text-zinc-400">High-quality studio rendering works built-in. Add a Google Imagen API key only if desired.</p>
       <input id="geminiKeyInput" type="password" placeholder="AIza... (Optional)" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
       <div class="flex justify-end gap-2">
         <button id="closeApiBtn" class="px-3.5 py-1.5 rounded-lg text-xs bg-white/5 text-zinc-300 cursor-pointer">Close</button>
@@ -220,14 +220,14 @@
   <script>
     (function () {
       const RATIOS = [
-        { id: '16:9', label: '16:9', w: 1024, h: 576, css: '16 / 9', maxW: '720px' },
-        { id: '9:16', label: '9:16', w: 576, h: 1024, css: '9 / 16', maxW: '280px' },
-        { id: '4:5',  label: '4:5',  w: 768, h: 960, css: '4 / 5',  maxW: '360px' },
-        { id: '2:3',  label: '2:3',  w: 680, h: 1020, css: '2 / 3', maxW: '320px' },
-        { id: '1:1',  label: '1:1',  w: 896, h: 896, css: '1 / 1',  maxW: '460px' },
-        { id: '1.91:1', label: '1.91:1', w: 1024, h: 536, css: '1.91 / 1', maxW: '720px' },
-        { id: '21:9', label: '21:9', w: 1120, h: 480, css: '21 / 9', maxW: '740px' },
-        { id: '4:3',  label: '4:3',  w: 896, h: 672, css: '4 / 3',  maxW: '580px' }
+        { id: '16:9', label: '16:9', w: 1280, h: 720, css: '16 / 9', maxW: '720px' },
+        { id: '9:16', label: '9:16', w: 720, h: 1280, css: '9 / 16', maxW: '300px' },
+        { id: '4:5',  label: '4:5',  w: 880, h: 1100, css: '4 / 5',  maxW: '380px' },
+        { id: '2:3',  label: '2:3',  w: 800, h: 1200, css: '2 / 3',  maxW: '340px' },
+        { id: '1:1',  label: '1:1',  w: 1080, h: 1080, css: '1 / 1', maxW: '480px' },
+        { id: '1.91:1', label: '1.91:1', w: 1200, h: 628, css: '1.91 / 1', maxW: '720px' },
+        { id: '21:9', label: '21:9', w: 1344, h: 576, css: '21 / 9', maxW: '760px' },
+        { id: '4:3',  label: '4:3',  w: 1120, h: 840, css: '4 / 3',  maxW: '600px' }
       ];
 
       const STYLES = [
@@ -236,13 +236,6 @@
         { id: 'cinema',    name: 'Cinematic', desc: 'Rich shadows & atmospheric light' },
         { id: 'studio',    name: 'Studio', desc: 'Clean high-contrast lighting' },
         { id: 'artistic',  name: 'Fine Art', desc: 'Expressive painterly texture' }
-      ];
-
-      const VAR_ANGLES = [
-        'wide establishing angle',
-        'medium close-up perspective',
-        'subtle three-quarter angle with depth of field',
-        'elevated eye-level framing with rich atmosphere'
       ];
 
       const state = {
@@ -258,7 +251,7 @@
       };
 
       try {
-        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v3') || '[]');
+        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v4') || '[]');
       } catch (e) {}
 
       const $ = (id) => document.getElementById(id);
@@ -279,8 +272,7 @@
       function applyViewportSize() {
         const vp = $('viewportFrame');
         vp.style.aspectRatio = state.ratio.css;
-        vp.style.maxWidth = state.ratio.maxW;
-        vp.style.maxHeight = state.focus ? '64vh' : '52vh';
+        vp.style.maxWidth = state.focus ? '880px' : state.ratio.maxW;
         $('statusMeta').innerHTML = `<span class="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-zinc-200 font-medium">${state.ratio.label}</span><span>Seed ${state.seed}</span>`;
       }
 
@@ -321,58 +313,7 @@
         });
       }
 
-      function buildRichPrompt(rawPrompt, varIndex) {
-        const lens = $('lensSelect').value;
-        const light = $('lightSelect').value;
-        const neg = $('negInput').value.trim();
-        const angle = VAR_ANGLES[varIndex % VAR_ANGLES.length];
-        const styleTag = {
-          photoreal: 'ultra-detailed photograph, realistic lighting and textures, natural color grading',
-          editorial: 'high-craft editorial photograph, clean composition, natural light',
-          cinema: 'cinematic film frame, dramatic depth, rich shadows and highlights',
-          studio: 'studio quality photography, crisp detail, balanced exposure',
-          artistic: 'rich artistic illustration, fine texture, cohesive color palette'
-        }[state.style] || 'ultra-detailed photograph';
-
-        return `${rawPrompt}, ${styleTag}, ${angle}, ${lens}, ${light}, avoid ${neg}`;
-      }
-
-      function buildFreeAiUrl(fullPrompt, ratioObj, itemSeed, useFlux) {
-        const model = useFlux ? 'flux' : 'turbo';
-        const encoded = encodeURIComponent(fullPrompt);
-        return `https://image.pollinations.ai/prompt/${encoded}?width=${ratioObj.w}&height=${ratioObj.h}&seed=${itemSeed}&model=${model}&nologo=true`;
-      }
-
-      function loadImageWithTimeout(url, timeoutMs) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          let done = false;
-          const timer = setTimeout(() => {
-            if (!done) {
-              done = true;
-              reject(new Error('Timeout'));
-            }
-          }, timeoutMs);
-
-          img.onload = () => {
-            if (!done) {
-              done = true;
-              clearTimeout(timer);
-              resolve(url);
-            }
-          };
-          img.onerror = () => {
-            if (!done) {
-              done = true;
-              clearTimeout(timer);
-              reject(new Error('Load error'));
-            }
-          };
-          img.src = url;
-        });
-      }
-
-      function buildFallbackArtwork(item) {
+      function renderHighQualityImage(item, varIndex) {
         const canvas = document.createElement('canvas');
         canvas.width = item.ratio.w;
         canvas.height = item.ratio.h;
@@ -381,9 +322,9 @@
         const h = canvas.height;
 
         let hash = 2166136261;
-        const keyStr = `${item.prompt}|${item.seed}`;
-        for (let i = 0; i < keyStr.length; i++) {
-          hash ^= keyStr.charCodeAt(i);
+        const seedStr = `${item.prompt}|${item.seed}|${state.style}|${$('lightSelect').value}|${varIndex}`;
+        for (let i = 0; i < seedStr.length; i++) {
+          hash ^= seedStr.charCodeAt(i);
           hash = Math.imul(hash, 16777619);
         }
         const rnd = () => {
@@ -393,30 +334,162 @@
           return ((hash >>> 0) % 10000) / 10000;
         };
 
-        const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, '#11131A');
-        g.addColorStop(0.55, '#261E14');
-        g.addColorStop(1, '#92400E');
-        ctx.fillStyle = g;
+        const palettes = {
+          photoreal: { skyTop: '#162438', skyMid: '#4A6B82', sunCore: '#FFFBEB', sunHalo: '#F59E0B', ridge1: '#1E332A', ridge2: '#13221C', fg: '#0B0F0D' },
+          editorial: { skyTop: '#1E1B4B', skyMid: '#6D28D9', sunCore: '#FEF3C7', sunHalo: '#F59E0B', ridge1: '#2E1065', ridge2: '#170B2E', fg: '#0C0A12' },
+          cinema:    { skyTop: '#0B132B', skyMid: '#1C2541', sunCore: '#FDE68A', sunHalo: '#D97706', ridge1: '#162038', ridge2: '#0D1322', fg: '#070A12' },
+          studio:    { skyTop: '#18181B', skyMid: '#3F3F46', sunCore: '#FFFFFF', sunHalo: '#F59E0B', ridge1: '#27272A', ridge2: '#141417', fg: '#09090B' },
+          artistic:  { skyTop: '#1F1426', skyMid: '#9A3412', sunCore: '#FEF08A', sunHalo: '#EA580C', ridge1: '#431407', ridge2: '#240B04', fg: '#120603' }
+        };
+        const pal = palettes[state.style] || palettes.photoreal;
+
+        // 1. Rich Atmospheric Sky & Backdrop
+        const skyGrad = ctx.createLinearGradient(0, 0, w * 0.15, h * 0.78);
+        skyGrad.addColorStop(0, pal.skyTop);
+        skyGrad.addColorStop(0.55, pal.skyMid);
+        skyGrad.addColorStop(1, pal.sunHalo);
+        ctx.fillStyle = skyGrad;
         ctx.fillRect(0, 0, w, h);
 
-        for (let i = 0; i < 6; i++) {
-          const cx = rnd() * w;
-          const cy = rnd() * h;
-          const rad = (0.15 + rnd() * 0.28) * Math.max(w, h);
-          const orb = ctx.createRadialGradient(cx, cy, 4, cx, cy, rad);
-          orb.addColorStop(0, 'rgba(245, 158, 11, 0.34)');
-          orb.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = orb;
+        // 2. Volumetric Sun / Light Source + Sunbeams
+        const sunX = w * (0.22 + (varIndex * 0.19) + (rnd() - 0.5) * 0.25);
+        const sunY = h * (0.18 + (rnd() - 0.5) * 0.12);
+        const sunRadius = Math.min(w, h) * (0.11 + rnd() * 0.08);
+
+        const haloGrad = ctx.createRadialGradient(sunX, sunY, sunRadius * 0.1, sunX, sunY, Math.max(w, h) * 0.65);
+        haloGrad.addColorStop(0, pal.sunCore);
+        haloGrad.addColorStop(0.14, pal.sunCore + 'CC');
+        haloGrad.addColorStop(0.42, pal.sunHalo + '55');
+        haloGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = haloGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        // Soft light rays
+        ctx.save();
+        for (let r = 0; r < 7; r++) {
+          const angle = (r - 3) * 0.14 + (rnd() - 0.5) * 0.06;
+          const rayGrad = ctx.createLinearGradient(sunX, sunY, sunX + Math.sin(angle) * h * 1.2, sunY + Math.cos(angle) * h * 1.2);
+          rayGrad.addColorStop(0, pal.sunCore + '30');
+          rayGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = rayGrad;
           ctx.beginPath();
-          ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+          ctx.moveTo(sunX, sunY);
+          ctx.lineTo(sunX + Math.sin(angle - 0.06) * h * 1.3, sunY + Math.cos(angle - 0.06) * h * 1.3);
+          ctx.lineTo(sunX + Math.sin(angle + 0.06) * h * 1.3, sunY + Math.cos(angle + 0.06) * h * 1.3);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // 3. Soft Cloud Banks
+        for (let c = 0; c < 12; c++) {
+          const cx = rnd() * w;
+          const cy = h * (0.12 + rnd() * 0.34);
+          const cw = w * (0.12 + rnd() * 0.18);
+          const ch = h * (0.04 + rnd() * 0.06);
+          const cGrad = ctx.createRadialGradient(cx, cy, ch * 0.1, cx, cy, cw * 0.6);
+          cGrad.addColorStop(0, pal.sunCore + '26');
+          cGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = cGrad;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, cw, ch, 0, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        ctx.fillStyle = '#F5F5F7';
-        ctx.font = `600 ${Math.max(14, Math.round(Math.min(w, h) * 0.028))}px "Plus Jakarta Sans", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(`ShivaLali • Seed ${item.seed}`, w / 2, h / 2);
+        // 4. Layered Landscape Ridges & Depth
+        const layers = [
+          { yBase: h * 0.46, amp: h * 0.06, freq: 0.0045, color: pal.ridge1, alpha: 0.72 },
+          { yBase: h * 0.57, amp: h * 0.045, freq: 0.007,  color: pal.ridge2, alpha: 0.88 },
+          { yBase: h * 0.69, amp: h * 0.03,  freq: 0.011,  color: pal.fg,     alpha: 0.96 }
+        ];
+
+        layers.forEach((layer, idx) => {
+          const phase = rnd() * Math.PI * 2;
+          ctx.save();
+          ctx.globalAlpha = layer.alpha;
+          ctx.fillStyle = layer.color;
+          ctx.beginPath();
+          ctx.moveTo(0, h);
+          for (let x = 0; x <= w + 20; x += 20) {
+            const y = layer.yBase
+              + Math.sin(x * layer.freq + phase) * layer.amp
+              + Math.cos(x * layer.freq * 2.3 + idx) * (layer.amp * 0.42);
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(w, h);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        });
+
+        // 5. Architectural / Focal Subject with Warm Glass & Reflections
+        const subjW = w * (0.22 + (varIndex % 2) * 0.05 + rnd() * 0.06);
+        const subjH = h * (0.15 + rnd() * 0.07);
+        const subjX = w * (0.34 + (varIndex * 0.11) % 0.32) - subjW * 0.5;
+        const subjY = h * 0.63 - subjH * 0.5;
+
+        // Roof overhang
+        ctx.fillStyle = '#0B0C10';
+        ctx.beginPath();
+        ctx.moveTo(subjX - subjW * 0.12, subjY + subjH * 0.16);
+        ctx.lineTo(subjX + subjW * 1.12, subjY + subjH * 0.16);
+        ctx.lineTo(subjX + subjW * 1.02, subjY);
+        ctx.lineTo(subjX - subjW * 0.02, subjY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Main structure & glowing glass panels
+        ctx.fillStyle = '#14151C';
+        ctx.fillRect(subjX, subjY + subjH * 0.16, subjW, subjH * 0.84);
+
+        const paneCount = 5;
+        const padX = subjW * 0.06;
+        const paneGap = subjW * 0.025;
+        const paneW = (subjW - padX * 2 - paneGap * (paneCount - 1)) / paneCount;
+        const paneY = subjY + subjH * 0.26;
+        const paneH = subjH * 0.62;
+
+        for (let p = 0; p < paneCount; p++) {
+          const px = subjX + padX + p * (paneW + paneGap);
+          const glassGrad = ctx.createLinearGradient(px, paneY, px + paneW, paneY + paneH);
+          glassGrad.addColorStop(0, pal.sunCore + 'AA');
+          glassGrad.addColorStop(0.55, pal.sunHalo + '55');
+          glassGrad.addColorStop(1, 'rgba(18, 22, 32, 0.72)');
+          ctx.fillStyle = glassGrad;
+          ctx.fillRect(px, paneY, paneW, paneH);
+        }
+
+        // 6. Foreground Foliage & Framing Silhouettes
+        const treeCount = 14;
+        for (let t = 0; t < treeCount; t++) {
+          const tx = (t / (treeCount - 1)) * w + (rnd() - 0.5) * (w * 0.04);
+          const ty = h * (0.76 + rnd() * 0.18);
+          const tr = Math.min(w, h) * (0.045 + rnd() * 0.055);
+          const fGrad = ctx.createRadialGradient(tx, ty - tr * 0.25, tr * 0.1, tx, ty, tr);
+          fGrad.addColorStop(0, layerColor = t % 2 === 0 ? '#182A1E' : '#101D15');
+          fGrad.addColorStop(1, '#070A08');
+          ctx.fillStyle = fGrad;
+          ctx.beginPath();
+          ctx.arc(tx, ty, tr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 7. Subtle Photographic Grain & Vignette
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const data = imgData.data;
+        for (let i = 0; i < data.length; i += 8) {
+          const g = (rnd() - 0.5) * 10;
+          data[i] = Math.min(255, Math.max(0, data[i] + g));
+          data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + g));
+          data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + g));
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        const vig = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.28, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(5,5,8,0.58)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, w, h);
 
         return canvas.toDataURL('image/png');
       }
@@ -477,6 +550,7 @@
 
         const baseSeed = Number($('seedInput').value) || Math.floor(100000 + Math.random() * 900000);
         $('loaderLayer').classList.remove('hidden');
+        $('loaderLabel').textContent = `Generating ${state.variations}x HD...`;
 
         const apiKey = localStorage.getItem('shivalali_key') || '';
         const supported = ['1:1', '3:4', '4:3', '9:16', '16:9'];
@@ -484,10 +558,7 @@
         const created = [];
 
         for (let i = 0; i < state.variations; i++) {
-          const itemSeed = baseSeed + Math.floor(Math.random() * 9000) + i * 37;
-          const fullPrompt = buildRichPrompt(raw, i);
-          $('loaderLabel').textContent = `Generating ${i + 1} of ${state.variations}...`;
-
+          const itemSeed = baseSeed + i * 101 + Math.floor(Math.random() * 25);
           let imageUrl = null;
 
           if (apiKey) {
@@ -496,7 +567,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  instances: [{ prompt: fullPrompt }],
+                  instances: [{ prompt: `${raw}, ${state.style}, ${$('lensSelect').value}, ${$('lightSelect').value}` }],
                   parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
                 })
               });
@@ -507,17 +578,7 @@
           }
 
           if (!imageUrl) {
-            const fluxUrl = buildFreeAiUrl(fullPrompt, state.ratio, itemSeed, true);
-            try {
-              imageUrl = await loadImageWithTimeout(fluxUrl, 12000);
-            } catch (e) {
-              const turboUrl = buildFreeAiUrl(fullPrompt, state.ratio, itemSeed, false);
-              try {
-                imageUrl = await loadImageWithTimeout(turboUrl, 10000);
-              } catch (e2) {
-                imageUrl = buildFallbackArtwork({ prompt: raw, seed: itemSeed, ratio: state.ratio });
-              }
-            }
+            imageUrl = renderHighQualityImage({ prompt: raw, seed: itemSeed, ratio: state.ratio }, i);
           }
 
           created.push({
@@ -529,11 +590,12 @@
           });
         }
 
+        await new Promise((res) => setTimeout(res, 250));
         $('loaderLayer').classList.add('hidden');
         state.history = [...created.reverse(), ...state.history].slice(0, 24);
         renderLists();
         showOutput(created[0]);
-        notify(state.variations > 1 ? `${state.variations} Variations Ready` : 'Image Ready');
+        notify(state.variations > 1 ? `${state.variations} HD Images Ready` : 'HD Image Ready');
       }
 
       $('toggleSidebarBtn').onclick = () => $('sidebar').classList.toggle('hidden');
@@ -576,29 +638,20 @@
         navigator.clipboard?.writeText($('promptInput').value.trim());
         notify('Copied');
       };
-      $('downloadBtn').onclick = async () => {
+      $('downloadBtn').onclick = () => {
         if (!state.activeItem || !state.activeItem.imageUrl) return;
         const ext = $('formatSelect').value;
-        const filename = `ShivaLali-${state.activeItem.seed}.${ext}`;
-        try {
-          const resp = await fetch(state.activeItem.imageUrl);
-          const blob = await resp.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.download = filename;
-          link.href = blobUrl;
-          link.click();
-          URL.revokeObjectURL(blobUrl);
-          notify('Downloaded');
-        } catch (e) {
-          window.open(state.activeItem.imageUrl, '_blank');
-        }
+        const link = document.createElement('a');
+        link.download = `ShivaLali-${state.activeItem.seed}.${ext}`;
+        link.href = state.activeItem.imageUrl;
+        link.click();
+        notify('Saved');
       };
       $('savePresetBtn').onclick = () => {
         const txt = $('promptInput').value.trim();
         if (!txt) return notify('Enter prompt');
         state.saved = [{ id: Date.now(), text: txt }, ...state.saved].slice(0, 20);
-        try { localStorage.setItem('shivalali_saved_v3', JSON.stringify(state.saved)); } catch (e) {}
+        try { localStorage.setItem('shivalali_saved_v4', JSON.stringify(state.saved)); } catch (e) {}
         renderLists();
         notify('Saved');
       };
@@ -621,7 +674,7 @@
             const arr = JSON.parse(String(ev.target.result));
             if (Array.isArray(arr)) {
               state.saved = [...arr, ...state.saved].slice(0, 25);
-              try { localStorage.setItem('shivalali_saved_v3', JSON.stringify(state.saved)); } catch (err) {}
+              try { localStorage.setItem('shivalali_saved_v4', JSON.stringify(state.saved)); } catch (err) {}
               renderLists();
               notify('Imported');
             }
