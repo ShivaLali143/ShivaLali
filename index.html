@@ -40,7 +40,7 @@
       overflow-x: hidden;
     }
     .studio-card {
-      background: rgba(17, 17, 22, 0.84);
+      background: rgba(17, 17, 22, 0.86);
       border: 1px solid rgba(255, 255, 255, 0.09);
     }
     .studio-dock {
@@ -50,6 +50,12 @@
     .logo-frame {
       background: #F4F4F5;
       box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 6px 20px rgba(0, 0, 0, 0.45);
+    }
+    .thirds-grid {
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+      background-size: 33.333% 33.333%;
     }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -248,6 +254,11 @@
       const [seed, setSeed] = useState(() => generateRandomSeed());
       const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE);
       const [exportFormat, setExportFormat] = useState('png');
+      const [variationCount, setVariationCount] = useState(1);
+
+      const [showGrid, setShowGrid] = useState(false);
+      const [zoomed, setZoomed] = useState(false);
+      const [referenceImage, setReferenceImage] = useState('');
 
       const [prompt, setPrompt] = useState('');
       const [enhancedPrompt, setEnhancedPrompt] = useState('');
@@ -280,6 +291,8 @@
       const [customEndpoint, setCustomEndpoint] = useState(() => localStorage.getItem('shivalali_custom_endpoint') || '');
 
       const canvasRef = useRef(null);
+      const importInputRef = useRef(null);
+      const refImageInputRef = useRef(null);
 
       const notify = (msg) => {
         setToast(msg);
@@ -311,13 +324,70 @@
           preset,
           seed
         };
-        setSavedPrompts((prev) => [entry, ...prev.slice(0, 14)]);
+        setSavedPrompts((prev) => [entry, ...prev.slice(0, 19)]);
         notify('Prompt Saved to Library');
       };
 
       const handleDeleteSavedPrompt = (id) => {
         setSavedPrompts((prev) => prev.filter((item) => item.id !== id));
         notify('Removed from Saved Library');
+      };
+
+      const handleExportPresetsJson = () => {
+        const payload = JSON.stringify({ brand: 'ShivaLali', exportedAt: new Date().toISOString(), presets: savedPrompts }, null, 2);
+        const blob = new Blob([payload], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ShivaLali-Presets.json';
+        link.click();
+        URL.revokeObjectURL(url);
+        notify('Presets Exported (JSON)');
+      };
+
+      const handleImportPresetsJson = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const parsed = JSON.parse(String(ev.target?.result || '{}'));
+            const incoming = Array.isArray(parsed) ? parsed : parsed.presets;
+            if (Array.isArray(incoming) && incoming.length > 0) {
+              const cleaned = incoming
+                .filter((p) => p && typeof p.text === 'string' && p.text.trim())
+                .map((p, idx) => ({
+                  id: Date.now() + idx,
+                  text: p.text.trim(),
+                  ratioId: p.ratioId || '16:9',
+                  preset: p.preset || 'editorial',
+                  seed: p.seed || generateRandomSeed()
+                }));
+              setSavedPrompts((prev) => [...cleaned, ...prev].slice(0, 25));
+              notify(`Imported ${cleaned.length} Presets`);
+            } else {
+              notify('No valid presets found in JSON');
+            }
+          } catch {
+            notify('Invalid JSON file');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      };
+
+      const handleReferenceUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (typeof ev.target?.result === 'string') {
+            setReferenceImage(ev.target.result);
+            notify('Reference Guide Loaded');
+          }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
       };
 
       const handleMagicEnhance = async () => {
@@ -361,74 +431,84 @@
       };
 
       const handleGenerate = async () => {
-        if (!isOwner && credits <= 0) {
+        const neededCredits = variationCount;
+        if (!isOwner && credits < neededCredits) {
           setShowPricingModal(true);
-          notify('0 Free Credits left — Upgrade to continue');
+          notify(`Need ${neededCredits} credit(s) — Upgrade to continue`);
           return;
         }
 
-        const currentSeed = Number(seed) || generateRandomSeed();
+        const baseSeed = Number(seed) || generateRandomSeed();
         const finalPrompt = (enhancedPrompt || prompt).trim() || enhancePromptText('serene coastal cliffside villa at sunrise', preset, lens, lighting, mode, negativePrompt);
         setIsGenerating(true);
-        setProgress(16);
+        setProgress(15);
 
         const timer = setInterval(() => {
-          setProgress((p) => (p < 88 ? p + Math.floor(Math.random() * 15) + 6 : p));
+          setProgress((p) => (p < 88 ? p + Math.floor(Math.random() * 14) + 6 : p));
         }, 200);
 
-        let generatedImageUrl = null;
+        const batchItems = [];
         const supportedImagenRatios = ['1:1', '3:4', '4:3', '9:16', '16:9'];
         const apiRatio = supportedImagenRatios.includes(aspectRatio.id) ? aspectRatio.id : '16:9';
 
-        if (geminiKey.trim() && mode === 'image') {
-          try {
-            const res = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(geminiKey.trim())}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  instances: [{ prompt: finalPrompt }],
-                  parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: currentSeed }
-                })
+        for (let i = 0; i < variationCount; i++) {
+          const itemSeed = baseSeed + i;
+          let generatedImageUrl = null;
+
+          if (geminiKey.trim() && mode === 'image') {
+            try {
+              const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(geminiKey.trim())}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    instances: [{ prompt: finalPrompt }],
+                    parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
+                  })
+                }
+              );
+              const data = await res.json();
+              const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
+              const mime = data?.predictions?.[0]?.mimeType || 'image/png';
+              if (b64) {
+                generatedImageUrl = `data:${mime};base64,${b64}`;
               }
-            );
-            const data = await res.json();
-            const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
-            const mime = data?.predictions?.[0]?.mimeType || 'image/png';
-            if (b64) {
-              generatedImageUrl = `data:${mime};base64,${b64}`;
-            }
-          } catch (err) {}
+            } catch (err) {}
+          }
+
+          batchItems.push({
+            id: Date.now() + i,
+            mode,
+            seed: itemSeed,
+            prompt: finalPrompt,
+            preset,
+            lens,
+            lighting,
+            ratio: aspectRatio,
+            watermarked: !isOwner,
+            imageUrl: generatedImageUrl,
+            createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
         }
 
-        await new Promise((r) => setTimeout(r, 850));
+        await new Promise((r) => setTimeout(r, 750));
         clearInterval(timer);
         setProgress(100);
 
-        const newItem = {
-          id: Date.now(),
-          mode,
-          seed: currentSeed,
-          prompt: finalPrompt,
-          preset,
-          lens,
-          lighting,
-          ratio: aspectRatio,
-          watermarked: !isOwner,
-          imageUrl: generatedImageUrl,
-          createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
         if (!isOwner) {
-          setCredits((c) => Math.max(0, c - 1));
+          setCredits((c) => Math.max(0, c - neededCredits));
         }
 
-        setActiveOutput(newItem);
-        setHistory((prev) => [newItem, ...prev.slice(0, 19)]);
+        setActiveOutput(batchItems[0]);
+        setHistory((prev) => [...batchItems.reverse(), ...prev].slice(0, 24));
         setIsGenerating(false);
         setTimeout(() => setProgress(0), 300);
-        notify(isOwner ? `Generated • Seed ${currentSeed}` : `Generated (1 Credit Used) • Seed ${currentSeed}`);
+        notify(
+          isOwner
+            ? `Generated ${variationCount}x (Owner Unlimited • Seed ${baseSeed})`
+            : `Generated ${variationCount}x (-${neededCredits} Credit${neededCredits > 1 ? 's' : ''})`
+        );
       };
 
       const handleDownloadHighRes = () => {
@@ -649,6 +729,29 @@
                   </div>
                 </div>
 
+                {/* Variations Queue */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-2">
+                    Variations Queue
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[1, 2, 4].map((cnt) => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        onClick={() => setVariationCount(cnt)}
+                        className={`py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          variationCount === cnt
+                            ? 'bg-violet-600/25 border-violet-400/60 text-white'
+                            : 'bg-white/[0.02] border-white/10 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {cnt}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Aspect Ratios */}
                 <div>
                   <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-2">
@@ -765,6 +868,43 @@
                       className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-[11px] text-zinc-300 resize-none focus:outline-none focus:border-violet-400"
                     />
                   </div>
+
+                  {/* Reference Guide Image */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold">
+                        Reference Guide
+                      </label>
+                      {referenceImage && (
+                        <button
+                          type="button"
+                          onClick={() => setReferenceImage('')}
+                          className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      ref={refImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReferenceUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => refImageInputRef.current?.click()}
+                      className="w-full py-2 px-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 text-xs text-zinc-300 transition cursor-pointer"
+                    >
+                      {referenceImage ? 'Change Reference Image' : 'Load Reference Image'}
+                    </button>
+                    {referenceImage && (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-white/10 h-20 bg-black/40">
+                        <img src={referenceImage} alt="Reference" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </aside>
             )}
@@ -782,10 +922,32 @@
                     {aspectRatio.label} ({aspectRatio.subtitle})
                   </span>
                   <span className="hidden sm:inline">•</span>
-                  <span className="hidden sm:inline text-zinc-500">Seed {seed}</span>
+                  <span className="hidden sm:inline text-zinc-500">Seed {seed} • {variationCount}x</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowGrid(!showGrid)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                      showGrid
+                        ? 'bg-violet-600/25 border-violet-400/50 text-violet-200'
+                        : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-300'
+                    }`}
+                  >
+                    Grid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomed(!zoomed)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
+                      zoomed
+                        ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
+                        : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-zinc-300'
+                    }`}
+                  >
+                    {zoomed ? '115%' : 'Fit'}
+                  </button>
                   <select
                     value={exportFormat}
                     onChange={(e) => setExportFormat(e.target.value)}
@@ -818,15 +980,20 @@
                     aspectRatio: aspectRatio.cssRatio,
                     maxWidth: '100%',
                     maxHeight: focusMode ? '62vh' : '50vh',
-                    width: aspectRatio.id === '9:16' ? '280px' : aspectRatio.id === '2:3' ? '320px' : aspectRatio.id === '4:5' ? '360px' : '680px'
+                    width: aspectRatio.id === '9:16' ? '280px' : aspectRatio.id === '2:3' ? '320px' : aspectRatio.id === '4:5' ? '360px' : '680px',
+                    transform: zoomed ? 'scale(1.06)' : 'scale(1)'
                   }}
                   className="relative w-full h-full rounded-2xl studio-card border border-white/15 overflow-hidden flex items-center justify-center transition-all duration-300"
                 >
+                  {showGrid && (
+                    <div className="pointer-events-none absolute inset-0 z-10 thirds-grid" />
+                  )}
+
                   {isGenerating && (
                     <div className="absolute inset-0 z-20 bg-black/75 flex flex-col items-center justify-center gap-3 p-6 text-center">
                       <div className="w-9 h-9 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
                       <div className="text-xs font-semibold tracking-wider uppercase text-amber-300">
-                        Rendering {mode === 'video' ? 'Cinematic Video' : '8K Photorealism'} • {progress}%
+                        Rendering {variationCount}x {mode === 'video' ? 'Cinematic Video' : '8K Photorealism'} • {progress}%
                       </div>
                       <div className="w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
                         <div
@@ -912,8 +1079,8 @@
                       {isGenerating
                         ? 'Generating...'
                         : isOwner
-                          ? `Generate Unlimited (${mode === 'image' ? 'Image' : 'Video'})`
-                          : `Generate (${credits} Credits Left)`}
+                          ? `Generate ${variationCount}x Unlimited`
+                          : `Generate ${variationCount}x (${credits} Credits Left)`}
                     </button>
                   </div>
                 </div>
@@ -923,13 +1090,35 @@
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {/* Saved Presets */}
                 <div className="studio-card rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-400">
                       Saved Presets ({savedPrompts.length})
                     </span>
-                    {savedPrompts.length > 0 && (
-                      <span className="text-[11px] text-zinc-500">Click text to load</span>
-                    )}
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <input
+                        ref={importInputRef}
+                        type="file"
+                        accept="application/json,.json"
+                        onChange={handleImportPresetsJson}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => importInputRef.current?.click()}
+                        className="text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                      >
+                        Import
+                      </button>
+                      {savedPrompts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleExportPresetsJson}
+                          className="text-amber-300 hover:underline cursor-pointer"
+                        >
+                          Export JSON
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {savedPrompts.length === 0 ? (
                     <div className="text-xs text-zinc-500 py-2">
@@ -1124,107 +1313,3 @@
                         <div className="font-display font-bold text-base text-white">
                           {selectedPlan.name} — <span className="text-amber-300">{selectedPlan.price}{selectedPlan.period}</span>
                         </div>
-                      </div>
-                      <button
-                        onClick={() => setSelectedPlan(null)}
-                        className="text-xs text-violet-300 hover:underline cursor-pointer"
-                      >
-                        Change
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-zinc-400 block mb-2">Choose Payment Gateway</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['UPI', 'Razorpay', 'Stripe'].map((method) => (
-                          <button
-                            key={method}
-                            onClick={() => setPaymentMethod(method)}
-                            className={`py-2 rounded-xl text-xs font-semibold border cursor-pointer ${
-                              paymentMethod === method
-                                ? 'bg-violet-600/30 border-violet-400 text-white'
-                                : 'bg-white/5 border-white/10 text-zinc-400'
-                            }`}
-                          >
-                            {method}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {paymentSuccess && (
-                      <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-xl p-3">
-                        {paymentSuccess}
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleCompleteCheckout(selectedPlan)}
-                      className="w-full py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] text-white cursor-pointer"
-                    >
-                      Pay {selectedPlan.price} via {paymentMethod}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* API Settings Modal */}
-          {showApiModal && (
-            <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-              <div className="studio-card max-w-md w-full rounded-2xl p-6 border border-white/15 space-y-4">
-                <div>
-                  <h3 className="font-display font-bold text-lg text-white">API & Engine Settings</h3>
-                  <p className="text-xs text-zinc-400">
-                    Connect your Google Gemini / Imagen API key here. Works seamlessly even without keys.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-xs text-zinc-300 block mb-1">Google Gemini / Imagen API Key</label>
-                  <input
-                    type="password"
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder="AIza..."
-                    className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white focus:outline-none focus:border-violet-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-zinc-300 block mb-1">Custom Video / ComfyUI Endpoint (Optional)</label>
-                  <input
-                    type="text"
-                    value={customEndpoint}
-                    onChange={(e) => setCustomEndpoint(e.target.value)}
-                    placeholder="https://your-colab-tunnel.trycloudflare.com"
-                    className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white focus:outline-none focus:border-violet-400"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setShowApiModal(false)}
-                    className="px-4 py-2 rounded-xl text-xs bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveApiSettings}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#7C3AED] to-[#F59E0B] text-white cursor-pointer"
-                  >
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
-</body>
-</html>
