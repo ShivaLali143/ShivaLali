@@ -73,9 +73,9 @@
       <button id="focusBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 cursor-pointer">Focus</button>
       <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-xs text-amber-300 font-medium">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span>HD Studio v2</span>
+        <span>Cloudflare FLUX Studio</span>
       </div>
-      <button id="apiBtn" class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 cursor-pointer" title="API Settings">⚙</button>
+      <button id="apiBtn" class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 cursor-pointer" title="Cloudflare Worker Settings">⚙</button>
     </div>
   </header>
 
@@ -167,8 +167,8 @@
           </div>
           <img id="resultImg" src="" alt="Generated Image" class="hidden w-full h-full object-contain bg-black block" />
           <div id="emptyState" class="p-6 text-center max-w-md">
-            <div id="emptyTitle" class="text-xs font-semibold text-amber-400 mb-1">ShivaLali Studio</div>
-            <p id="emptyDesc" class="text-xs text-zinc-400">Add your API key via ⚙ (or enter a prompt and press Generate).</p>
+            <div id="emptyTitle" class="text-xs font-semibold text-amber-400 mb-1">ShivaLali Studio (100% Free)</div>
+            <p id="emptyDesc" class="text-xs text-zinc-400 break-words">Click ⚙ to paste your Cloudflare Worker URL (or enter a prompt to try Free AI).</p>
           </div>
         </div>
       </div>
@@ -204,22 +204,22 @@
     </main>
   </div>
 
-  <!-- API Modal -->
+  <!-- Cloudflare Worker Modal -->
   <div id="apiModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="panel max-w-md w-full rounded-2xl p-5 border border-white/15 space-y-3">
-      <div class="font-display font-bold text-base text-white">API Key Settings</div>
-      <p class="text-xs text-zinc-400">Paste your Gemini / Google AI Studio API key below. It will be saved in your browser and used first for high-quality image generation.</p>
-      <input id="geminiKeyInput" type="password" placeholder="Paste your API key here (AIza...)" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
+      <div class="font-display font-bold text-base text-white">Cloudflare Workers AI (100% Free)</div>
+      <p class="text-xs text-zinc-400">Paste your Cloudflare Worker URL below (e.g. <code class="text-amber-300">https://shivalali143.lsamba-freelancer.workers.dev</code>). Uses FLUX.1-schnell for crisp text & zero watermarks.</p>
+      <input id="cfWorkerInput" type="text" placeholder="https://shivalali143.lsamba-freelancer.workers.dev" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
       <div class="flex justify-end gap-2">
         <button id="closeApiBtn" class="px-3.5 py-1.5 rounded-lg text-xs bg-white/5 text-zinc-300 cursor-pointer">Close</button>
-        <button id="saveApiBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold gold-btn cursor-pointer">Save Key</button>
+        <button id="saveApiBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold gold-btn cursor-pointer">Save URL</button>
       </div>
     </div>
   </div>
 
   <script>
     (function () {
-      const DEFAULT_API_KEY = '';
+      const DEFAULT_WORKER_URL = 'https://shivalali143.lsamba-freelancer.workers.dev';
 
       const RATIOS = [
         { id: '16:9', label: '16:9', w: 1280, h: 720, css: '16 / 9', maxW: '720px' },
@@ -240,15 +240,6 @@
         { id: 'artistic',  name: 'Fine Art', desc: 'Expressive detailed artwork' }
       ];
 
-      const GEMINI_IMAGE_MODELS = [
-        'gemini-3.1-flash-image-preview',
-        'gemini-2.5-flash-image'
-      ];
-
-      const IMAGEN_MODELS = [
-        'imagen-3.0-generate-002'
-      ];
-
       const state = {
         variations: 1,
         ratio: RATIOS[0],
@@ -258,19 +249,18 @@
         grid: false,
         activeItem: null,
         history: [],
-        saved: [],
-        discoveredModels: null
+        saved: []
       };
 
       try {
-        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v8') || '[]');
+        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_cf') || '[]');
       } catch (e) {}
 
       const $ = (id) => document.getElementById(id);
 
-      function getActiveApiKey() {
-        const savedKey = (localStorage.getItem('shivalali_key') || '').trim();
-        return savedKey || DEFAULT_API_KEY.trim();
+      function getWorkerUrl() {
+        const savedUrl = (localStorage.getItem('shivalali_cf_url') || '').trim();
+        return savedUrl || DEFAULT_WORKER_URL.trim();
       }
 
       function notify(msg) {
@@ -345,82 +335,35 @@
         return `${rawPrompt}. ${styleText}. Camera/Lens: ${lens}, Lighting: ${light}, aspect ratio ${state.ratio.label}, variation ${varIndex + 1}. Avoid: ${neg}.`;
       }
 
-      async function discoverAvailableModels(apiKey) {
-        if (state.discoveredModels) return state.discoveredModels;
-        const found = { gemini: [...GEMINI_IMAGE_MODELS], imagen: [...IMAGEN_MODELS] };
+      async function generateWithCloudflare(fullPrompt, workerUrl) {
         try {
-          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
-          const data = await resp.json();
-          const list = Array.isArray(data?.models) ? data.models : [];
-          const dynamicGemini = [];
-          const dynamicImagen = [];
-          for (const m of list) {
-            const rawName = (m?.name || '').replace(/^models\//, '');
-            const methods = Array.isArray(m?.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
-            if (rawName.includes('image') && methods.includes('generateContent')) {
-              dynamicGemini.push(rawName);
-            }
-            if (rawName.startsWith('imagen-') && methods.includes('predict')) {
-              dynamicImagen.push(rawName);
-            }
+          const resp = await fetch(workerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: fullPrompt })
+          });
+          if (!resp.ok) {
+            return { url: null, error: `Worker HTTP ${resp.status}` };
           }
-          if (dynamicGemini.length) found.gemini = [...new Set([...dynamicGemini, ...found.gemini])];
-          if (dynamicImagen.length) found.imagen = [...new Set([...dynamicImagen, ...found.imagen])];
-        } catch (e) {}
-        state.discoveredModels = found;
-        return found;
-      }
-
-      async function generateWithUserKey(fullPrompt, apiKey, ratioObj, itemSeed) {
-        const models = await discoverAvailableModels(apiKey);
-        const supported = ['1:1', '3:4', '4:3', '9:16', '16:9'];
-        const apiRatio = supported.includes(ratioObj.id) ? ratioObj.id : '16:9';
-        let lastErr = '';
-
-        for (const modelName of models.gemini) {
-          try {
-            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: fullPrompt }] }],
-                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
-              })
+          const ct = resp.headers.get('content-type') || '';
+          if (ct.includes('image/')) {
+            const blob = await resp.blob();
+            const dataUrl = await new Promise((resolve) => {
+              const fr = new FileReader();
+              fr.onloadend = () => resolve(fr.result);
+              fr.readAsDataURL(blob);
             });
-            const d = await r.json();
-            const parts = d?.candidates?.[0]?.content?.parts || [];
-            for (const p of parts) {
-              if (p.inlineData && p.inlineData.data) {
-                const mime = p.inlineData.mimeType || 'image/png';
-                return { url: `data:${mime};base64,${p.inlineData.data}`, model: modelName, error: null };
-              }
-            }
-            if (d?.error?.message) {
-              lastErr = `${modelName}: ${d.error.message}`;
-            }
-          } catch (e) {}
+            return { url: dataUrl, error: null };
+          }
+          const data = await resp.json();
+          if (data?.image) {
+            const imgStr = data.image.startsWith('data:') ? data.image : `data:image/png;base64,${data.image}`;
+            return { url: imgStr, error: null };
+          }
+          return { url: null, error: data?.error || 'No image field in Worker response' };
+        } catch (e) {
+          return { url: null, error: e?.message || 'Worker connection failed' };
         }
-
-        for (const imgModel of models.imagen) {
-          try {
-            const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(imgModel)}:predict?key=${encodeURIComponent(apiKey)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                instances: [{ prompt: fullPrompt }],
-                parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
-              })
-            });
-            const d2 = await r2.json();
-            const b64 = d2?.predictions?.[0]?.bytesBase64Encoded;
-            if (b64) return { url: `data:image/png;base64,${b64}`, model: imgModel, error: null };
-            if (d2?.error?.message) {
-              lastErr = `${imgModel}: ${d2.error.message}`;
-            }
-          } catch (e) {}
-        }
-
-        return { url: null, model: null, error: lastErr || 'No image returned by API key.' };
       }
 
       async function generateWithFreeFallback(fullPrompt, ratioObj, itemSeed) {
@@ -516,7 +459,7 @@
         }
 
         const baseSeed = Number($('seedInput').value) || Math.floor(100000 + Math.random() * 900000);
-        const apiKey = getActiveApiKey();
+        const workerUrl = getWorkerUrl();
         $('loaderLayer').classList.remove('hidden');
 
         const created = [];
@@ -530,11 +473,11 @@
 
           let imageUrl = null;
 
-          if (apiKey) {
-            const res = await generateWithUserKey(fullPrompt, apiKey, state.ratio, itemSeed);
+          if (workerUrl) {
+            const res = await generateWithCloudflare(fullPrompt, workerUrl);
             if (res.url) {
               imageUrl = res.url;
-              sourceLabel = res.model || 'Gemini API';
+              sourceLabel = 'Cloudflare FLUX';
             } else if (res.error) {
               lastError = res.error;
             }
@@ -559,9 +502,9 @@
         $('loaderLayer').classList.add('hidden');
 
         if (!created.length) {
-          const msg = apiKey
-            ? `API issue: ${lastError || 'Check your API key or billing/quota in Google AI Studio.'}`
-            : 'No API key added and free AI server did not respond. Click ⚙ to add your API key.';
+          const msg = workerUrl
+            ? `Cloudflare issue: ${lastError}`
+            : 'Click ⚙ to add your free Cloudflare Worker URL (or try again).';
           showNoticeInViewport('Image Not Generated', msg);
           notify('Generation failed');
           return;
@@ -626,7 +569,7 @@
         const txt = $('promptInput').value.trim();
         if (!txt) return notify('Enter prompt');
         state.saved = [{ id: Date.now(), text: txt }, ...state.saved].slice(0, 20);
-        try { localStorage.setItem('shivalali_saved_v8', JSON.stringify(state.saved)); } catch (e) {}
+        try { localStorage.setItem('shivalali_saved_cf', JSON.stringify(state.saved)); } catch (e) {}
         renderLists();
         notify('Saved');
       };
@@ -649,7 +592,7 @@
             const arr = JSON.parse(String(ev.target.result));
             if (Array.isArray(arr)) {
               state.saved = [...arr, ...state.saved].slice(0, 25);
-              try { localStorage.setItem('shivalali_saved_v8', JSON.stringify(state.saved)); } catch (err) {}
+              try { localStorage.setItem('shivalali_saved_cf', JSON.stringify(state.saved)); } catch (err) {}
               renderLists();
               notify('Imported');
             }
@@ -658,15 +601,14 @@
         r.readAsText(f);
       };
       $('apiBtn').onclick = () => {
-        $('geminiKeyInput').value = localStorage.getItem('shivalali_key') || DEFAULT_API_KEY || '';
+        $('cfWorkerInput').value = localStorage.getItem('shivalali_cf_url') || DEFAULT_WORKER_URL || '';
         $('apiModal').classList.remove('hidden');
       };
       $('closeApiBtn').onclick = () => $('apiModal').classList.add('hidden');
       $('saveApiBtn').onclick = () => {
-        state.discoveredModels = null;
-        localStorage.setItem('shivalali_key', $('geminiKeyInput').value.trim());
+        localStorage.setItem('shivalali_cf_url', $('cfWorkerInput').value.trim());
         $('apiModal').classList.add('hidden');
-        notify('API Key Saved');
+        notify('Cloudflare URL Saved');
       };
 
       renderRatioButtons();
