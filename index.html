@@ -73,7 +73,7 @@
       <button id="focusBtn" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-200 cursor-pointer">Focus</button>
       <div class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-400/30 text-xs text-amber-300 font-medium">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-        <span>HD Studio</span>
+        <span>HD Studio v2</span>
       </div>
       <button id="apiBtn" class="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 cursor-pointer" title="API Settings">⚙</button>
     </div>
@@ -208,7 +208,7 @@
   <div id="apiModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="panel max-w-md w-full rounded-2xl p-5 border border-white/15 space-y-3">
       <div class="font-display font-bold text-base text-white">API Key Settings</div>
-      <p class="text-xs text-zinc-400">Paste your Gemini / Imagen API key below. It will be saved in your browser and used first for high-quality image generation.</p>
+      <p class="text-xs text-zinc-400">Paste your Gemini / Google AI Studio API key below. It will be saved in your browser and used first for high-quality image generation.</p>
       <input id="geminiKeyInput" type="password" placeholder="Paste your API key here (AIza...)" class="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-xs text-white" />
       <div class="flex justify-end gap-2">
         <button id="closeApiBtn" class="px-3.5 py-1.5 rounded-lg text-xs bg-white/5 text-zinc-300 cursor-pointer">Close</button>
@@ -219,7 +219,6 @@
 
   <script>
     (function () {
-      // You can also paste your API key directly between the quotes below if desired:
       const DEFAULT_API_KEY = '';
 
       const RATIOS = [
@@ -241,6 +240,15 @@
         { id: 'artistic',  name: 'Fine Art', desc: 'Expressive detailed artwork' }
       ];
 
+      const GEMINI_IMAGE_MODELS = [
+        'gemini-3.1-flash-image-preview',
+        'gemini-2.5-flash-image'
+      ];
+
+      const IMAGEN_MODELS = [
+        'imagen-3.0-generate-002'
+      ];
+
       const state = {
         variations: 1,
         ratio: RATIOS[0],
@@ -250,11 +258,12 @@
         grid: false,
         activeItem: null,
         history: [],
-        saved: []
+        saved: [],
+        discoveredModels: null
       };
 
       try {
-        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v6') || '[]');
+        state.saved = JSON.parse(localStorage.getItem('shivalali_saved_v8') || '[]');
       } catch (e) {}
 
       const $ = (id) => document.getElementById(id);
@@ -269,7 +278,7 @@
         el.textContent = msg;
         el.classList.remove('hidden');
         clearTimeout(notify._t);
-        notify._t = setTimeout(() => el.classList.add('hidden'), 3000);
+        notify._t = setTimeout(() => el.classList.add('hidden'), 3200);
       }
 
       $('brandLogoImg').onerror = function () {
@@ -333,55 +342,85 @@
           artistic: 'detailed digital illustration, rich colors and fine details'
         };
         const styleText = styleMap[state.style] || styleMap.editorial;
-        return `${rawPrompt}. ${styleText}. Camera/Lens: ${lens}, Lighting: ${light}, variation ${varIndex + 1}. Avoid: ${neg}.`;
+        return `${rawPrompt}. ${styleText}. Camera/Lens: ${lens}, Lighting: ${light}, aspect ratio ${state.ratio.label}, variation ${varIndex + 1}. Avoid: ${neg}.`;
+      }
+
+      async function discoverAvailableModels(apiKey) {
+        if (state.discoveredModels) return state.discoveredModels;
+        const found = { gemini: [...GEMINI_IMAGE_MODELS], imagen: [...IMAGEN_MODELS] };
+        try {
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+          const data = await resp.json();
+          const list = Array.isArray(data?.models) ? data.models : [];
+          const dynamicGemini = [];
+          const dynamicImagen = [];
+          for (const m of list) {
+            const rawName = (m?.name || '').replace(/^models\//, '');
+            const methods = Array.isArray(m?.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+            if (rawName.includes('image') && methods.includes('generateContent')) {
+              dynamicGemini.push(rawName);
+            }
+            if (rawName.startsWith('imagen-') && methods.includes('predict')) {
+              dynamicImagen.push(rawName);
+            }
+          }
+          if (dynamicGemini.length) found.gemini = [...new Set([...dynamicGemini, ...found.gemini])];
+          if (dynamicImagen.length) found.imagen = [...new Set([...dynamicImagen, ...found.imagen])];
+        } catch (e) {}
+        state.discoveredModels = found;
+        return found;
       }
 
       async function generateWithUserKey(fullPrompt, apiKey, ratioObj, itemSeed) {
+        const models = await discoverAvailableModels(apiKey);
         const supported = ['1:1', '3:4', '4:3', '9:16', '16:9'];
         const apiRatio = supported.includes(ratioObj.id) ? ratioObj.id : '16:9';
+        let lastErr = '';
 
-        // 1. Gemini Image Generation model
-        try {
-          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: fullPrompt }] }],
-              generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
-            })
-          });
-          const d = await r.json();
-          const parts = d?.candidates?.[0]?.content?.parts || [];
-          for (const p of parts) {
-            if (p.inlineData && p.inlineData.data) {
-              const mime = p.inlineData.mimeType || 'image/png';
-              return { url: `data:${mime};base64,${p.inlineData.data}`, error: null };
+        for (const modelName of models.gemini) {
+          try {
+            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+              })
+            });
+            const d = await r.json();
+            const parts = d?.candidates?.[0]?.content?.parts || [];
+            for (const p of parts) {
+              if (p.inlineData && p.inlineData.data) {
+                const mime = p.inlineData.mimeType || 'image/png';
+                return { url: `data:${mime};base64,${p.inlineData.data}`, model: modelName, error: null };
+              }
             }
-          }
-          if (d?.error?.message) {
-            return { url: null, error: d.error.message };
-          }
-        } catch (e) {}
+            if (d?.error?.message) {
+              lastErr = `${modelName}: ${d.error.message}`;
+            }
+          } catch (e) {}
+        }
 
-        // 2. Imagen 3 endpoint
-        try {
-          const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: [{ prompt: fullPrompt }],
-              parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
-            })
-          });
-          const d2 = await r2.json();
-          const b64 = d2?.predictions?.[0]?.bytesBase64Encoded;
-          if (b64) return { url: `data:image/png;base64,${b64}`, error: null };
-          if (d2?.error?.message) {
-            return { url: null, error: d2.error.message };
-          }
-        } catch (e) {}
+        for (const imgModel of models.imagen) {
+          try {
+            const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(imgModel)}:predict?key=${encodeURIComponent(apiKey)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instances: [{ prompt: fullPrompt }],
+                parameters: { sampleCount: 1, aspectRatio: apiRatio, seed: itemSeed }
+              })
+            });
+            const d2 = await r2.json();
+            const b64 = d2?.predictions?.[0]?.bytesBase64Encoded;
+            if (b64) return { url: `data:image/png;base64,${b64}`, model: imgModel, error: null };
+            if (d2?.error?.message) {
+              lastErr = `${imgModel}: ${d2.error.message}`;
+            }
+          } catch (e) {}
+        }
 
-        return { url: null, error: 'API key did not return an image.' };
+        return { url: null, model: null, error: lastErr || 'No image returned by API key.' };
       }
 
       async function generateWithFreeFallback(fullPrompt, ratioObj, itemSeed) {
@@ -398,12 +437,11 @@
             if (ct.includes('image/')) {
               const blob = await resp.blob();
               if (blob.size > 3000) {
-                const dataUrl = await new Promise((resolve) => {
+                return await new Promise((resolve) => {
                   const fr = new FileReader();
                   fr.onloadend = () => resolve(fr.result);
                   fr.readAsDataURL(blob);
                 });
-                return dataUrl;
               }
             } else {
               const data = await resp.json();
@@ -496,7 +534,7 @@
             const res = await generateWithUserKey(fullPrompt, apiKey, state.ratio, itemSeed);
             if (res.url) {
               imageUrl = res.url;
-              sourceLabel = 'API Key';
+              sourceLabel = res.model || 'Gemini API';
             } else if (res.error) {
               lastError = res.error;
             }
@@ -588,7 +626,7 @@
         const txt = $('promptInput').value.trim();
         if (!txt) return notify('Enter prompt');
         state.saved = [{ id: Date.now(), text: txt }, ...state.saved].slice(0, 20);
-        try { localStorage.setItem('shivalali_saved_v6', JSON.stringify(state.saved)); } catch (e) {}
+        try { localStorage.setItem('shivalali_saved_v8', JSON.stringify(state.saved)); } catch (e) {}
         renderLists();
         notify('Saved');
       };
@@ -611,7 +649,7 @@
             const arr = JSON.parse(String(ev.target.result));
             if (Array.isArray(arr)) {
               state.saved = [...arr, ...state.saved].slice(0, 25);
-              try { localStorage.setItem('shivalali_saved_v6', JSON.stringify(state.saved)); } catch (err) {}
+              try { localStorage.setItem('shivalali_saved_v8', JSON.stringify(state.saved)); } catch (err) {}
               renderLists();
               notify('Imported');
             }
@@ -625,6 +663,7 @@
       };
       $('closeApiBtn').onclick = () => $('apiModal').classList.add('hidden');
       $('saveApiBtn').onclick = () => {
+        state.discoveredModels = null;
         localStorage.setItem('shivalali_key', $('geminiKeyInput').value.trim());
         $('apiModal').classList.add('hidden');
         notify('API Key Saved');
